@@ -1,0 +1,1312 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Avoseg Parceiros</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+:root {
+  --navy:#0F2744; --navy-light:#1B3A6B; --gold:#D4901A; --gold-light:#F5C842;
+  --bg:#F6F5F2; --surface:#FFFFFF; --surface2:#F0EEE9;
+  --border:rgba(15,39,68,0.10); --border-strong:rgba(15,39,68,0.20);
+  --text:#0F2744; --text-secondary:#6B7280; --text-muted:#9CA3AF;
+  --success:#059669; --success-bg:#ECFDF5;
+  --warning:#D97706; --warning-bg:#FFFBEB;
+  --danger:#DC2626; --danger-bg:#FEF2F2;
+  --info:#1B3A6B; --info-bg:#EFF4FB;
+  --radius:10px; --radius-lg:16px;
+  --shadow-lg:0 4px 16px rgba(15,39,68,0.10);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5}
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:99px}
+/* LOGIN */
+#login-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--navy);position:relative;overflow:hidden}
+#login-screen::before{content:'';position:absolute;width:600px;height:600px;border-radius:50%;background:radial-gradient(circle,rgba(212,144,26,0.15) 0%,transparent 70%);top:-200px;right:-100px;pointer-events:none}
+.login-box{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.10);border-radius:20px;padding:40px;width:380px;position:relative;z-index:1}
+.login-logo{text-align:center;margin-bottom:32px}
+.login-logo .brand{font-size:28px;font-weight:600;color:#fff;letter-spacing:-0.5px}
+.login-logo .brand span{color:var(--gold-light)}
+.login-logo .sub{font-size:12px;color:rgba(255,255,255,0.45);margin-top:4px;letter-spacing:0.08em;text-transform:uppercase}
+.login-tabs{display:flex;background:rgba(255,255,255,0.06);border-radius:var(--radius);padding:3px;margin-bottom:24px}
+.login-tab{flex:1;text-align:center;padding:7px;border-radius:8px;font-size:13px;cursor:pointer;color:rgba(255,255,255,0.5);transition:all .2s;border:none;background:none;font-family:inherit}
+.login-tab.active{background:rgba(255,255,255,0.12);color:#fff;font-weight:500}
+.login-field{margin-bottom:14px}
+.login-field label{display:block;font-size:12px;color:rgba(255,255,255,0.5);margin-bottom:6px}
+.login-field input,.login-field select{width:100%;padding:10px 14px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:var(--radius);color:#fff;font-size:14px;font-family:inherit;outline:none;transition:border-color .2s}
+.login-field input::placeholder{color:rgba(255,255,255,0.3)}
+.login-field input:focus,.login-field select:focus{border-color:var(--gold)}
+.login-field select option{background:var(--navy);color:#fff}
+.login-btn{width:100%;padding:12px;background:var(--gold);color:var(--navy);border:none;border-radius:var(--radius);font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;transition:all .2s;margin-top:8px;display:flex;align-items:center;justify-content:center;gap:8px}
+.login-btn:hover:not(:disabled){background:var(--gold-light)}
+.login-btn:disabled{opacity:.65;cursor:default}
+.login-error{font-size:12px;color:#FCA5A5;text-align:center;margin-top:10px;display:none}
+/* LAYOUT */
+#app{display:none;height:100vh;flex-direction:column}
+#app.visible{display:flex}
+.topbar{background:var(--navy);padding:0 24px;display:flex;align-items:center;gap:16px;height:56px;flex-shrink:0}
+.topbar-brand{font-size:16px;font-weight:600;color:#fff;letter-spacing:-0.3px}
+.topbar-brand span{color:var(--gold-light)}
+.topbar-role{font-size:11px;color:rgba(255,255,255,0.45);background:rgba(255,255,255,0.08);padding:3px 9px;border-radius:20px;text-transform:uppercase;letter-spacing:0.06em}
+.topbar-right{margin-left:auto;display:flex;align-items:center;gap:12px}
+.topbar-user{font-size:13px;color:rgba(255,255,255,0.7)}
+.logout-btn{font-size:12px;color:rgba(255,255,255,0.45);background:none;border:1px solid rgba(255,255,255,0.15);border-radius:6px;padding:4px 10px;cursor:pointer;font-family:inherit}
+.logout-btn:hover{color:#fff}
+.main{display:flex;flex:1;overflow:hidden}
+/* SIDEBAR */
+.sidebar{width:220px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);padding:16px 10px;display:flex;flex-direction:column;gap:2px;overflow-y:auto}
+.nav-section{font-size:10px;font-weight:600;color:var(--text-muted);letter-spacing:0.08em;text-transform:uppercase;padding:12px 10px 4px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--radius);cursor:pointer;color:var(--text-secondary);font-size:13px;transition:all .15s;border:none;background:none;width:100%;text-align:left;font-family:inherit}
+.nav-item:hover{background:var(--surface2);color:var(--text)}
+.nav-item.active{background:var(--info-bg);color:var(--navy-light);font-weight:500}
+.nav-item svg{width:16px;height:16px;flex-shrink:0}
+/* CONTENT */
+.content{flex:1;overflow-y:auto;padding:24px}
+.page{display:none}.page.active{display:block}
+.page-header{margin-bottom:24px}
+.page-title{font-size:20px;font-weight:600;letter-spacing:-0.3px}
+.page-sub{font-size:13px;color:var(--text-secondary);margin-top:3px}
+/* METRICS */
+.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:24px}
+.metric-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px}
+.metric-label{font-size:12px;color:var(--text-secondary);margin-bottom:6px}
+.metric-value{font-size:24px;font-weight:600;letter-spacing:-0.5px}
+.metric-sub{font-size:11px;color:var(--text-muted);margin-top:3px}
+.metric-card.accent{background:var(--navy);border-color:var(--navy)}
+.metric-card.accent .metric-label{color:rgba(255,255,255,0.5)}
+.metric-card.accent .metric-value{color:var(--gold-light)}
+/* CARD */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;margin-bottom:16px}
+.card-title{font-size:14px;font-weight:600}
+/* FORM */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.form-group{display:flex;flex-direction:column;gap:5px}
+.form-group label{font-size:12px;font-weight:500;color:var(--text-secondary)}
+.form-group input,.form-group select,.form-group textarea{padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius);font-size:13px;font-family:inherit;background:var(--surface);color:var(--text);outline:none;transition:border-color .15s}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:var(--navy-light)}
+.form-group textarea{resize:vertical;min-height:68px}
+/* BUTTONS */
+.btn{padding:9px 16px;border-radius:var(--radius);font-size:13px;font-weight:500;font-family:inherit;cursor:pointer;border:1px solid var(--border-strong);background:var(--surface);color:var(--text);transition:all .15s;display:inline-flex;align-items:center;gap:6px}
+.btn:hover:not(:disabled){background:var(--surface2)}
+.btn:disabled{opacity:.5;cursor:default}
+.btn-primary{background:var(--navy);color:#fff;border-color:var(--navy)}
+.btn-primary:hover:not(:disabled){background:var(--navy-light)}
+.btn-gold{background:var(--gold);color:var(--navy);border-color:var(--gold);font-weight:600}
+.btn-gold:hover:not(:disabled){background:var(--gold-light)}
+.btn-sm{padding:6px 12px;font-size:12px}
+.btn-danger{background:var(--danger-bg);color:var(--danger);border-color:rgba(220,38,38,0.25)}.btn-danger:hover:not(:disabled){background:#fee2e2}
+/* CONFIRM MODAL */
+.confirm-modal{background:var(--surface);border-radius:var(--radius-lg);padding:28px;width:380px;box-shadow:var(--shadow-lg);text-align:center}
+.confirm-icon{width:52px;height:52px;border-radius:50%;background:var(--danger-bg);display:flex;align-items:center;justify-content:center;margin:0 auto 16px}
+.confirm-title{font-size:16px;font-weight:600;margin-bottom:8px}
+.confirm-sub{font-size:13px;color:var(--text-secondary);margin-bottom:24px;line-height:1.5}
+.confirm-btns{display:flex;gap:10px;justify-content:center}
+/* RECEIPT */
+.receipt-link{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--navy-light);background:var(--info-bg);padding:4px 10px;border-radius:20px;text-decoration:none;border:none;cursor:pointer;font-family:inherit}
+.receipt-link:hover{background:#dbeafe}
+.receipt-upload-area{border:1.5px dashed var(--border-strong);border-radius:var(--radius);padding:14px;text-align:center;cursor:pointer;transition:all .15s;margin-top:8px}
+.receipt-upload-area:hover{border-color:var(--navy-light);background:var(--info-bg)}
+.receipt-upload-area input{display:none}
+.receipt-upload-label{font-size:13px;color:var(--text-secondary)}
+.receipt-preview{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--success-bg);border-radius:var(--radius);margin-top:8px;font-size:12px;color:var(--success)}
+/* BADGES */
+.badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;padding:3px 8px;border-radius:20px}
+.badge::before{content:'';width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.badge-new{background:var(--info-bg);color:var(--info)}.badge-new::before{background:var(--info)}
+.badge-contact{background:var(--warning-bg);color:var(--warning)}.badge-contact::before{background:var(--warning)}
+.badge-proposal{background:#EFF8F5;color:#065F46}.badge-proposal::before{background:#059669}
+.badge-won{background:var(--success-bg);color:var(--success)}.badge-won::before{background:var(--success)}
+.badge-lost{background:var(--danger-bg);color:var(--danger)}.badge-lost::before{background:var(--danger)}
+.badge-pending{background:#FFF7ED;color:#C2410C}.badge-pending::before{background:#EA580C}
+.badge-paid{background:var(--success-bg);color:var(--success)}.badge-paid::before{background:var(--success)}
+/* PIPELINE */
+.pipeline-wrap{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.pipeline-col{display:flex;flex-direction:column;gap:8px}
+.pipeline-col-head{font-size:11px;font-weight:600;color:var(--text-secondary);padding:6px 10px;background:var(--surface2);border-radius:8px;display:flex;align-items:center;justify-content:space-between;letter-spacing:0.04em;text-transform:uppercase}
+.pipeline-col-head .count{background:var(--border);color:var(--text-secondary);font-size:10px;padding:1px 7px;border-radius:20px}
+.p-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;cursor:pointer;transition:all .15s;border-left:3px solid transparent}
+.p-card:hover{box-shadow:var(--shadow-lg);border-color:var(--border-strong)}
+.p-card-name{font-size:13px;font-weight:500;margin-bottom:2px}
+.p-card-product{font-size:11px;color:var(--text-secondary)}
+.p-card-partner{font-size:10px;color:var(--navy-light);background:var(--info-bg);padding:2px 7px;border-radius:20px;display:inline-block;margin-top:6px}
+/* TABLE */
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{text-align:left;padding:10px 14px;font-size:11px;font-weight:600;color:var(--text-secondary);border-bottom:1px solid var(--border);white-space:nowrap;letter-spacing:0.04em;text-transform:uppercase}
+tbody td{padding:11px 14px;border-bottom:1px solid var(--border);vertical-align:middle}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover td{background:var(--surface2)}
+/* DETAIL */
+.detail-overlay{position:fixed;inset:0;background:rgba(15,39,68,0.35);z-index:100;display:none;align-items:center;justify-content:flex-end}
+.detail-overlay.open{display:flex}
+.detail-panel{width:420px;height:100vh;background:var(--surface);overflow-y:auto;box-shadow:-8px 0 32px rgba(15,39,68,0.12);display:flex;flex-direction:column}
+.detail-header{padding:20px 24px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;flex-shrink:0;background:var(--navy)}
+.detail-name{font-size:18px;font-weight:600;color:#fff}
+.detail-meta{font-size:12px;color:rgba(255,255,255,0.5);margin-top:3px}
+.detail-close{background:rgba(255,255,255,0.1);border:none;color:#fff;width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;line-height:1}
+.detail-body{padding:20px 24px;flex:1}
+.detail-section{margin-bottom:20px}
+.detail-section-title{font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px}
+.detail-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.detail-field{background:var(--surface2);border-radius:var(--radius);padding:10px 12px}
+.detail-field-label{font-size:11px;color:var(--text-secondary);margin-bottom:3px}
+.detail-field-value{font-size:13px;font-weight:500;word-break:break-all}
+.detail-field.full{grid-column:1/-1}
+.status-select{width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius);font-size:13px;font-family:inherit;background:var(--surface);color:var(--text);outline:none}
+/* TIMELINE */
+.timeline{display:flex;flex-direction:column;gap:12px}
+.tl-item{display:flex;gap:10px}
+.tl-dot-wrap{display:flex;flex-direction:column;align-items:center}
+.tl-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:4px}
+.tl-line{width:1px;background:var(--border);flex:1;margin-top:4px;min-height:12px}
+.tl-text{font-size:13px}
+.tl-date{font-size:11px;color:var(--text-muted);margin-top:2px}
+.tl-dot-new{background:var(--info)}.tl-dot-contact{background:var(--warning)}
+.tl-dot-proposal{background:var(--success)}.tl-dot-won{background:#059669}
+.tl-dot-lost{background:var(--danger)}.tl-dot-note{background:var(--text-muted)}
+.note-input-row{display:flex;gap:8px;margin-top:12px}
+.note-input-row input{flex:1;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius);font-size:13px;font-family:inherit;background:var(--surface);color:var(--text);outline:none}
+.note-input-row input:focus{border-color:var(--navy-light)}
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(15,39,68,0.4);z-index:200;display:none;align-items:center;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal{background:var(--surface);border-radius:var(--radius-lg);padding:24px;width:480px;max-height:90vh;overflow-y:auto;box-shadow:var(--shadow-lg)}
+.modal-title{font-size:16px;font-weight:600;margin-bottom:4px}
+.modal-sub{font-size:13px;color:var(--text-secondary);margin-bottom:20px}
+.modal-footer{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
+/* PARTNER */
+.partner-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:20px}
+.partner-stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;text-align:center}
+.partner-stat-val{font-size:28px;font-weight:600;letter-spacing:-0.5px}
+.partner-stat-label{font-size:12px;color:var(--text-secondary);margin-top:4px}
+.partner-lead-item{display:flex;align-items:center;gap:14px;padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px}
+.avatar-circle{width:38px;height:38px;border-radius:50%;background:var(--info-bg);color:var(--navy-light);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0}
+.partner-lead-info{flex:1}
+.partner-lead-name{font-size:14px;font-weight:500}
+.partner-lead-meta{font-size:12px;color:var(--text-secondary);margin-top:1px}
+/* COMMISSION */
+.comm-partner-banner{background:var(--navy);border-radius:var(--radius-lg);padding:20px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between}
+.comm-partner-banner .lbl{font-size:12px;color:rgba(255,255,255,0.5)}
+.comm-partner-banner .val{font-size:28px;font-weight:600;color:var(--gold-light);margin-top:2px}
+.commission-partner-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;margin-bottom:12px}
+.commission-totals{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:14px}
+.comm-total-box{background:var(--surface2);border-radius:var(--radius);padding:10px 14px}
+.comm-total-label{font-size:11px;color:var(--text-secondary)}
+.comm-total-value{font-size:18px;font-weight:600;margin-top:2px}
+/* FILTER */
+.filter-row{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+.filter-chip{padding:5px 14px;border-radius:20px;font-size:12px;border:1px solid var(--border-strong);background:transparent;cursor:pointer;transition:all .15s;color:var(--text-secondary);font-family:inherit}
+.filter-chip.active{background:var(--navy);color:#fff;border-color:var(--navy)}
+/* TOAST */
+.toast{position:fixed;bottom:24px;right:24px;background:var(--navy);color:#fff;padding:12px 18px;border-radius:var(--radius);font-size:13px;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none;display:flex;align-items:center;gap:8px}
+.toast.show{opacity:1}
+/* SPINNER */
+.spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+.spinner-dark{width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--navy);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading{display:flex;align-items:center;justify-content:center;padding:60px;color:var(--text-muted);font-size:13px;gap:10px}
+.empty{text-align:center;padding:48px 24px;color:var(--text-muted)}
+.empty-text{font-size:14px}
+
+/* ══ RESPONSIVE ══════════════════════════════════════ */
+.hamburger{display:none;background:none;border:none;cursor:pointer;padding:6px;border-radius:8px;flex-direction:column;gap:5px;flex-shrink:0}
+.hamburger span{display:block;width:20px;height:2px;background:#fff;border-radius:2px;transition:all .25s}
+.hamburger.open span:nth-child(1){transform:translateY(7px) rotate(45deg)}
+.hamburger.open span:nth-child(2){opacity:0}
+.hamburger.open span:nth-child(3){transform:translateY(-7px) rotate(-45deg)}
+.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(15,39,68,0.5);z-index:49;pointer-events:none}
+.sidebar-overlay.open{display:block;pointer-events:auto}
+.mobile-bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);z-index:40;padding:6px 0 max(6px,env(safe-area-inset-bottom))}
+.mob-nav-row{display:flex;justify-content:space-around}
+.mob-nav-btn{display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;cursor:pointer;padding:6px 8px;font-family:inherit;color:var(--text-secondary);font-size:10px;border-radius:var(--radius);transition:color .15s;flex:1;min-width:0}
+.mob-nav-btn svg{width:20px;height:20px;flex-shrink:0}
+.mob-nav-btn span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60px}
+.mob-nav-btn.active{color:var(--navy-light)}
+@media(max-width:768px){
+  .hamburger{display:flex}
+  .topbar{padding:0 14px;gap:8px}
+  .topbar-brand{font-size:14px}
+  .topbar-role{display:none}
+  .topbar-user{font-size:11px;max-width:80px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .logout-btn{font-size:11px;padding:4px 8px}
+  .sidebar{position:fixed;left:-248px;top:0;bottom:0;z-index:50;width:248px;padding-top:16px;transition:left .25s ease;box-shadow:none;overflow-y:auto}
+  .sidebar.open{left:0;box-shadow:6px 0 24px rgba(15,39,68,0.18)}
+  .sidebar-overlay.open{display:block}
+  .content{padding:14px;overflow-y:auto}
+  .content-partner{padding-bottom:80px}
+  .metrics{grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
+  .metric-value{font-size:20px}
+  .pipeline-wrap{display:flex;overflow-x:auto;gap:10px;padding-bottom:8px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch}
+  .pipeline-col{min-width:190px;flex-shrink:0;scroll-snap-align:start}
+  .detail-panel{width:100%}
+  .modal{width:calc(100vw - 24px);max-width:480px;padding:18px;max-height:95vh}
+  .form-grid{grid-template-columns:1fr}
+  .modal-footer{flex-direction:column}
+  .modal-footer .btn{width:100%;justify-content:center}
+  .partner-stats{gap:8px}
+  .partner-stat-val{font-size:20px}
+  .comm-partner-banner{flex-direction:column;gap:10px;padding:16px}
+  .comm-partner-banner .val{font-size:20px}
+  .commission-totals{gap:8px}
+  .comm-total-value{font-size:15px}
+  .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .detail-fields{grid-template-columns:1fr}
+  .detail-field.full{grid-column:1}
+  .confirm-modal{width:calc(100vw - 24px);max-width:400px;padding:22px 18px}
+  .toast{bottom:72px;right:12px;left:12px;font-size:12px}
+  .card{padding:14px}
+  .page-title{font-size:17px}
+  .btn-sm{padding:6px 10px;font-size:11px}
+  .mobile-bottom-nav{display:block}
+  .login-box{width:calc(100vw - 32px);max-width:400px;padding:28px 20px}
+}
+@media(max-width:400px){
+  .partner-stats{grid-template-columns:1fr 1fr}
+  .metrics{grid-template-columns:1fr 1fr}
+  .commission-totals{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════ LOGIN ═══════ -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">
+      <div class="brand">Avoseg <span>Parceiros</span></div>
+      <div class="sub">Sistema de indicações</div>
+    </div>
+    <div class="login-tabs">
+      <button class="login-tab active" onclick="setLoginType('admin')">Equipe Avoseg</button>
+      <button class="login-tab" onclick="setLoginType('partner')">Parceiro</button>
+    </div>
+    <div id="login-admin-fields">
+      <div class="login-field"><label>E-mail</label><input type="text" id="admin-email" placeholder="admin@avoseg.com.br"/></div>
+      <div class="login-field"><label>Senha</label><input type="password" id="admin-pass" placeholder="••••••••"/></div>
+    </div>
+    <div id="login-partner-fields" style="display:none">
+      <div class="login-field"><label>Nome do parceiro</label><input type="text" id="partner-name-input" placeholder="Ex: Oficina Souza"/></div>
+      <div class="login-field"><label>Senha</label><input type="password" id="partner-pass" placeholder="••••••••"/></div>
+    </div>
+    <button class="login-btn" id="login-btn" onclick="doLogin()">Entrar</button>
+    <div id="login-error" class="login-error"></div>
+  </div>
+</div>
+
+<!-- ═══════ APP ═══════ -->
+<div id="app">
+  <div class="topbar">
+    <button class="hamburger" id="hamburger" onclick="toggleSidebar()" aria-label="Menu"><span></span><span></span><span></span></button>
+    <div class="topbar-brand">Avoseg <span>Parceiros</span></div>
+    <div class="topbar-role" id="topbar-role">Admin</div>
+    <div class="topbar-right">
+      <div class="topbar-user" id="topbar-user"></div>
+      <button class="logout-btn" onclick="doLogout()">Sair</button>
+    </div>
+  </div>
+  <div class="main">
+    <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
+    <div class="sidebar" id="sidebar"></div>
+    <div class="content" id="content"></div>
+  </div>
+  <div class="mobile-bottom-nav" id="mobile-bottom-nav">
+    <div class="mob-nav-row" id="mob-nav-row"></div>
+  </div>
+</div>
+
+<!-- ═══════ DETAIL PANEL ═══════ -->
+<div class="detail-overlay" id="detail-overlay" onclick="maybeCloseDetail(event)">
+  <div class="detail-panel" onclick="event.stopPropagation()">
+    <div class="detail-header">
+      <div><div class="detail-name" id="dp-name">—</div><div class="detail-meta" id="dp-meta">—</div></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-sm btn-danger" id="dp-delete-btn" onclick="confirmDeleteLead()" style="display:none;font-size:11px">Excluir lead</button>
+        <button class="detail-close" onclick="closeDetailPanel()">×</button>
+      </div>
+    </div>
+    <div class="detail-body">
+      <div class="detail-section">
+        <div class="detail-section-title">Informações</div>
+        <div class="detail-fields">
+          <div class="detail-field"><div class="detail-field-label">Telefone</div><div class="detail-field-value" id="dp-tel">—</div></div>
+          <div class="detail-field"><div class="detail-field-label">E-mail</div><div class="detail-field-value" id="dp-email">—</div></div>
+          <div class="detail-field"><div class="detail-field-label">Produto</div><div class="detail-field-value" id="dp-product">—</div></div>
+          <div class="detail-field"><div class="detail-field-label">Parceiro</div><div class="detail-field-value" id="dp-partner">—</div></div>
+          <div class="detail-field full"><div class="detail-field-label">Observação</div><div class="detail-field-value" id="dp-obs">—</div></div>
+        </div>
+      </div>
+      <div class="detail-section" id="dp-status-section">
+        <div class="detail-section-title">Atualizar status</div>
+        <select class="status-select" id="dp-status" onchange="updateLeadStatus(this.value)">
+          <option>Novo</option><option>Em contato</option><option>Proposta enviada</option><option>Fechado</option><option>Perdido</option>
+        </select>
+      </div>
+      <div class="detail-section">
+        <div class="detail-section-title">Histórico</div>
+        <div class="timeline" id="dp-timeline"></div>
+        <div class="note-input-row" id="dp-note-row">
+          <input type="text" id="dp-note-input" placeholder="Adicionar anotação..."/>
+          <button class="btn btn-primary btn-sm" onclick="addNote()">Salvar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRM DELETE MODAL -->
+<div class="modal-overlay" id="modal-confirm">
+  <div class="confirm-modal" onclick="event.stopPropagation()">
+    <div class="confirm-icon">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#DC2626" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+    </div>
+    <div class="confirm-title" id="confirm-title">Confirmar exclusão</div>
+    <div class="confirm-sub" id="confirm-sub">Esta ação não pode ser desfeita.</div>
+    <div class="confirm-btns">
+      <button class="btn" onclick="closeModal('modal-confirm')">Cancelar</button>
+      <button class="btn btn-danger" onclick="executeConfirm()">Excluir</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ MODAL LEAD ═══════ -->
+<div class="modal-overlay" id="modal-lead">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title">Nova indicação</div>
+    <div class="modal-sub">Preencha os dados do cliente a ser indicado</div>
+    <div class="form-grid">
+      <div class="form-group"><label>Nome completo *</label><input type="text" id="ml-name" placeholder="João Silva"/></div>
+      <div class="form-group"><label>Telefone / WhatsApp *</label><input type="text" id="ml-tel" placeholder="(11) 99999-9999"/></div>
+      <div class="form-group"><label>E-mail</label><input type="text" id="ml-email" placeholder="joao@email.com"/></div>
+      <div class="form-group"><label>Produto *</label>
+        <select id="ml-product"><option value="">Selecione...</option><option>Seguro auto</option><option>Seguro de vida</option><option>Convênio</option><option>Seguro empresarial</option></select>
+      </div>
+    </div>
+    <div class="form-group"><label>Observação</label><textarea id="ml-obs" placeholder="Informações adicionais sobre o cliente..."></textarea></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-lead')">Cancelar</button>
+      <button class="btn btn-primary" id="btn-submit-lead" onclick="submitLead()">Enviar indicação</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ MODAL COMMISSION ═══════ -->
+<div class="modal-overlay" id="modal-commission">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title">Registrar comissão</div>
+    <div class="modal-sub">Cadastre o valor para um lead fechado</div>
+    <div class="form-grid">
+      <div class="form-group"><label>Parceiro *</label><select id="mc-partner" onchange="loadLeadsForCommission(this.value)"><option value="">Selecione...</option></select></div>
+      <div class="form-group"><label>Lead / Cliente *</label><select id="mc-lead"><option value="">Selecione o parceiro primeiro</option></select></div>
+      <div class="form-group"><label>Valor (R$) *</label><input type="number" id="mc-value" placeholder="0.00" min="0" step="0.01"/></div>
+      <div class="form-group"><label>Tipo</label><select id="mc-type"><option>Valor fixo</option><option>Percentual do prêmio</option></select></div>
+      <div class="form-group"><label>Vencimento</label><input type="date" id="mc-due"/></div>
+      <div class="form-group"><label>Status</label><select id="mc-status-pay"><option>Pendente</option><option>Pago</option></select></div>
+    </div>
+    <div class="form-group" style="margin-bottom:12px"><label>Observação</label><input type="text" id="mc-obs" placeholder="Ex: Comissão referente ao seguro auto"/></div>
+    <div class="form-group">
+      <label>Comprovante de pagamento (PDF ou imagem)</label>
+      <div class="receipt-upload-area" onclick="document.getElementById('mc-receipt').click()">
+        <input type="file" id="mc-receipt" accept=".pdf,.jpg,.jpeg,.png" onchange="previewReceipt(this)"/>
+        <div class="receipt-upload-label" id="mc-receipt-label">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="display:inline;vertical-align:middle;margin-right:6px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Clique para selecionar o comprovante
+        </div>
+      </div>
+      <div class="receipt-preview" id="mc-receipt-preview" style="display:none"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-commission')">Cancelar</button>
+      <button class="btn btn-primary" id="btn-submit-commission" onclick="saveCommission()">Salvar comissão</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ MODAL PARTNER ═══════ -->
+<div class="modal-overlay" id="modal-partner">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title">Cadastrar parceiro</div>
+    <div class="modal-sub">Adicione um novo parceiro ao sistema</div>
+    <div class="form-grid">
+      <div class="form-group"><label>Nome / Empresa *</label><input type="text" id="mp-name" placeholder="Ex: Oficina Boa Sorte"/></div>
+      <div class="form-group"><label>Tipo</label>
+        <select id="mp-type">
+          <option>Oficina</option>
+          <option>Loja de veículos</option>
+          <option>Contador</option>
+          <option>Imobiliária</option>
+          <option>Outro</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Responsável</label><input type="text" id="mp-contact" placeholder="Nome do responsável"/></div>
+      <div class="form-group"><label>Telefone</label><input type="text" id="mp-tel" placeholder="(11) 99999-9999"/></div>
+      <div class="form-group"><label>E-mail</label><input type="text" id="mp-email" placeholder="contato@parceiro.com"/></div>
+      <div class="form-group"><label>Comissão padrão (%)</label><input type="number" id="mp-commission" placeholder="5" min="0" max="100"/></div>
+    </div>
+    <div style="font-size:11px;font-weight:600;color:var(--text-muted,#9CA3AF);text-transform:uppercase;letter-spacing:0.06em;margin:4px 0 10px">Dados bancários para pagamento</div>
+    <div class="form-grid">
+      <div class="form-group"><label>Banco</label><input type="text" id="mp-bank" placeholder="Ex: Itaú, Nubank, BB"/></div>
+      <div class="form-group"><label>Chave PIX</label><input type="text" id="mp-pix" placeholder="CPF, e-mail, celular ou aleatória"/></div>
+      <div class="form-group"><label>Agência</label><input type="text" id="mp-agency" placeholder="Ex: 0001"/></div>
+      <div class="form-group"><label>Conta</label><input type="text" id="mp-account" placeholder="Ex: 12345-6"/></div>
+    </div>
+    <div class="form-group"><label>Senha de acesso *</label><input type="password" id="mp-pass" placeholder="Senha para o parceiro entrar no sistema"/></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-partner')">Cancelar</button>
+      <button class="btn btn-primary" id="btn-submit-partner" onclick="savePartner()">Cadastrar parceiro</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ MODAL ALTERAR SENHA PARCEIRO ═══════ -->
+<div class="modal-overlay" id="modal-change-pass">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title">Alterar senha do parceiro</div>
+    <div class="modal-sub">Selecione o parceiro e defina a nova senha de acesso</div>
+    <div class="form-group" style="margin-bottom:12px"><label>Parceiro *</label><select id="cp-partner"><option value="">Selecione...</option></select></div>
+    <div class="form-group" style="margin-bottom:12px"><label>Nova senha *</label><input type="password" id="cp-newpass" placeholder="Mínimo 6 caracteres"/></div>
+    <div class="form-group"><label>Confirmar nova senha *</label><input type="password" id="cp-confirmpass" placeholder="Repita a nova senha"/></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-change-pass')">Cancelar</button>
+      <button class="btn btn-primary" id="btn-submit-change-pass" onclick="savePartnerPassword()">Salvar nova senha</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ╔═════════════════════════════════════════════════╗
+// ║  ⚙️  CONFIGURAÇÃO — credenciais do Supabase    ║
+// ║  Admin: gerencie pelo Supabase Auth → Users    ║
+// ╚═════════════════════════════════════════════════╝
+var SUPABASE_URL = 'https://bwrstoyykhhxgdndsffa.supabase.co';
+var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ3cnN0b3l5a2hoeGdkbmRzZmZhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxMzMzNjQsImV4cCI6MjA4OTcwOTM2NH0.-N-ij4aDnY5uGE54UXN36V1TtPT4C38N0inME_C5HnI';
+// ══════════════════════════════════════════════════
+
+var db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+var S = { role:null, userName:null, partnerName:null, page:null, selectedLeadId:null, leads:[], partners:[] };
+
+// ── UTILS ──────────────────────────────────────────
+function ini(n){ return n.split(' ').slice(0,2).map(function(w){return w[0]}).join('').toUpperCase(); }
+function bc(s){ return {'Novo':'badge-new','Em contato':'badge-contact','Proposta enviada':'badge-proposal','Fechado':'badge-won','Perdido':'badge-lost'}[s]||'badge-new'; }
+function dc(t){ return {new:'tl-dot-new',contact:'tl-dot-contact',proposal:'tl-dot-proposal',won:'tl-dot-won',lost:'tl-dot-lost',note:'tl-dot-note'}[t]||'tl-dot-note'; }
+function st(s){ return {'Novo':'new','Em contato':'contact','Proposta enviada':'proposal','Fechado':'won','Perdido':'lost'}[s]||'note'; }
+function fm(v){ return 'R$ '+parseFloat(v||0).toFixed(2).replace('.',',').replace(/\B(?=(\d{3})+(?!\d))/g,'.'); }
+function fd(ts){ if(!ts) return '—'; var d=new Date(ts); return d.getDate()+'/'+(d.getMonth()+1)+'/'+d.getFullYear(); }
+function ldg(){ return '<div class="loading"><div class="spinner-dark"></div>Carregando...</div>'; }
+function toast(msg, ok){
+  var t=document.getElementById('toast');
+  var ic = ok===false ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FCA5A5" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>'
+    : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>';
+  t.innerHTML = ic+msg; t.classList.add('show');
+  setTimeout(function(){t.classList.remove('show');},3000);
+}
+function openModal(id){ document.getElementById(id).classList.add('open'); }
+function closeModal(id){ document.getElementById(id).classList.remove('open'); }
+function setBtnLoading(id, on){
+  var b=document.getElementById(id); if(!b) return;
+  b.disabled=on;
+  if(on){ b.dataset.orig=b.innerHTML; b.innerHTML='<div class="spinner"></div>'; }
+  else { b.innerHTML=b.dataset.orig||b.innerHTML; }
+}
+
+var confirmCallback=null;
+function showConfirm(title,sub,cb){
+  document.getElementById('confirm-title').textContent=title;
+  document.getElementById('confirm-sub').textContent=sub;
+  confirmCallback=cb;
+  openModal('modal-confirm');
+}
+function executeConfirm(){
+  closeModal('modal-confirm');
+  if(confirmCallback) confirmCallback();
+  confirmCallback=null;
+}
+
+// ── RECEIPT UPLOAD ──────────────────────────────────
+function previewReceipt(input){
+  var file=input.files[0]; if(!file) return;
+  var prev=document.getElementById('mc-receipt-preview');
+  prev.style.display='flex';
+  prev.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>'
+    +file.name+' ('+Math.round(file.size/1024)+'KB)';
+  document.getElementById('mc-receipt-label').textContent='Arquivo: '+file.name;
+}
+async function uploadAndLinkReceipt(commissionId){
+  var input=document.getElementById('mc-receipt');
+  if(!input||!input.files||!input.files[0]) return;
+  var file=input.files[0];
+  var ext=file.name.split('.').pop();
+  var path='comprovantes/'+commissionId+'.'+ext;
+  var {error}=await db.storage.from('comprovantes').upload(path,file,{upsert:true});
+  if(error){console.error('upload receipt',error);return;}
+  var {data}=db.storage.from('comprovantes').getPublicUrl(path);
+  await db.from('commissions').update({receipt_url:data.publicUrl}).eq('id',commissionId);
+}
+
+// ── EXCEL EXPORT ────────────────────────────────────
+async function exportLeadsExcel(){
+  toast('Gerando Excel...');
+  var leads=await dbLeads();
+  if(!leads.length){toast('Nenhum lead para exportar.',false);return;}
+  var rows=leads.map(function(l){
+    return{
+      'Nome':l.name,
+      'Telefone':l.tel,
+      'E-mail':l.email||'',
+      'Produto':l.product,
+      'Parceiro':l.partner_name,
+      'Status':l.status,
+      'Observação':l.obs||'',
+      'Data indicação':fd(l.created_at)
+    };
+  });
+  try {
+    var ws=XLSX.utils.json_to_sheet(rows);
+    ws['!cols']=[{wch:24},{wch:18},{wch:28},{wch:20},{wch:22},{wch:18},{wch:32},{wch:16}];
+    var wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,'Leads',ws);
+    // Usar Blob para garantir funcionamento em todos os navegadores
+    var wbout=XLSX.write(wb,{bookType:'xlsx',type:'array'});
+    var blob=new Blob([wbout],{type:'application/octet-stream'});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a');
+    a.href=url;
+    a.download='avoseg-leads-'+new Date().toISOString().slice(0,10)+'.xlsx';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast('Excel exportado! ('+leads.length+' leads)');
+  } catch(e){
+    console.error('Excel error:',e);
+    toast('Erro ao gerar Excel: '+e.message,false);
+  }
+}
+
+// ── SUPABASE OPS ───────────────────────────────────
+async function dbLeads(partner){
+  var q=db.from('leads').select('*').order('created_at',{ascending:false});
+  if(partner) q=q.eq('partner_name',partner);
+  var {data,error}=await q;
+  if(error){ console.error('leads',error); return []; }
+  return data||[];
+}
+async function dbPartners(){
+  var {data,error}=await db.from('partners').select('*').order('name');
+  if(error){ console.error('partners',error); return []; }
+  return data||[];
+}
+async function dbCommissions(partner){
+  var q=db.from('commissions').select('*').order('created_at',{ascending:false});
+  if(partner) q=q.eq('partner_name',partner);
+  var {data,error}=await q;
+  if(error){ console.error('commissions',error); return []; }
+  return data||[];
+}
+async function dbHistory(leadId){
+  var {data,error}=await db.from('lead_history').select('*').eq('lead_id',leadId).order('created_at');
+  if(error){ console.error('history',error); return []; }
+  return data||[];
+}
+async function addHistory(leadId, type, text){
+  var {error}=await db.from('lead_history').insert({lead_id:leadId, type, text});
+  if(error) console.error('insert history',error);
+}
+
+
+// ── SIDEBAR MOBILE ─────────────────────────────────
+function toggleSidebar(){
+  var sb=document.getElementById('sidebar');
+  var ov=document.getElementById('sidebar-overlay');
+  var hb=document.getElementById('hamburger');
+  var opening=!sb.classList.contains('open');
+  sb.classList.toggle('open',opening);
+  ov.classList.toggle('open',opening);
+  hb.classList.toggle('open',opening);
+}
+function closeSidebar(){
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebar-overlay').classList.remove('open');
+  document.getElementById('hamburger').classList.remove('open');
+}
+// ── LOGIN ──────────────────────────────────────────
+var loginType='admin';
+function setLoginType(t){
+  loginType=t;
+  document.querySelectorAll('.login-tab').forEach(function(b,i){ b.classList.toggle('active',(i===0&&t==='admin')||(i===1&&t==='partner')); });
+  document.getElementById('login-admin-fields').style.display=t==='admin'?'':'none';
+  document.getElementById('login-partner-fields').style.display=t==='partner'?'':'none';
+  document.getElementById('login-error').style.display='none';
+}
+async function doLogin(){
+  var err=document.getElementById('login-error'); err.style.display='none';
+  setBtnLoading('login-btn',true);
+  if(loginType==='admin'){
+    var email=document.getElementById('admin-email').value.trim();
+    var pass=document.getElementById('admin-pass').value;
+    if(!email||!pass){err.textContent='Preencha e-mail e senha.';err.style.display='block';setBtnLoading('login-btn',false);return;}
+    // Autenticação via Supabase Auth — senha nunca fica no código-fonte
+    var {data,error}=await db.auth.signInWithPassword({email:email,password:pass});
+    if(error||!data.user){
+      err.textContent='E-mail ou senha incorretos.';err.style.display='block';
+    } else {
+      // Verifica se o usuário tem perfil de admin na tabela admin_users
+      var {data:adminRow}=await db.from('admin_users').select('id').eq('id',data.user.id).maybeSingle();
+      if(!adminRow){
+        await db.auth.signOut();
+        err.textContent='Acesso não autorizado para este e-mail.';err.style.display='block';
+      } else {
+        await startApp('admin','Equipe Avoseg',null);
+      }
+    }
+  } else {
+    var name=document.getElementById('partner-name-input').value.trim();
+    var pass=document.getElementById('partner-pass').value;
+    if(!name){ err.textContent='Digite o nome do parceiro.'; err.style.display='block'; setBtnLoading('login-btn',false); return; }
+    var {data,error}=await db.from('partners').select('*').ilike('name',name).eq('pass',pass).maybeSingle();
+    if(error||!data){ err.textContent='Parceiro não encontrado ou senha incorreta.'; err.style.display='block'; }
+    else { await startApp('partner',data.name,data.name); }
+  }
+  setBtnLoading('login-btn',false);
+}
+async function doLogout(){
+  if(S.role==='admin') await db.auth.signOut();
+  S.role=null; S.leads=[]; S.partners=[];
+  document.getElementById('app').classList.remove('visible');
+  document.getElementById('login-screen').style.display='flex';
+}
+async function startApp(role,userName,partnerName){
+  S.role=role; S.userName=userName; S.partnerName=partnerName;
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('app').classList.add('visible');
+  document.getElementById('topbar-user').textContent=userName;
+  document.getElementById('topbar-role').textContent=role==='admin'?'Equipe Avoseg':'Parceiro';
+  renderSidebar();
+  navigate(role==='admin'?'pipeline':'partner-leads');
+}
+
+// ── SIDEBAR ────────────────────────────────────────
+var adminNav=[
+  {section:'Principal'},
+  {id:'pipeline',label:'Pipeline',icon:'<path d="M9 17H7a2 2 0 0 0-2 2v.5h14V19a2 2 0 0 0-2-2h-2m-4-4V5M7 9l5-4 5 4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>'},
+  {id:'leads-list',label:'Lista de leads',icon:'<path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 1 1 4 0 2 2 0 0 1-4 0" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/>'},
+  {id:'client-referrals',label:'Indica & Ganha (PF)',icon:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/><circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/>'},
+  {section:'Parceiros'},
+  {id:'partners',label:'Parceiros',icon:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/>'},
+  {id:'commissions',label:'Comissões',icon:'<path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/>'},
+  {section:'Relatórios'},
+  {id:'report',label:'Relatório de conversão',icon:'<path d="M18 20V10M12 20V4M6 20v-6" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/>'},
+];
+var partnerNav=[
+  {section:'Portal'},
+  {id:'partner-leads',label:'Minhas indicações',icon:'<path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 1 1 4 0 2 2 0 0 1-4 0" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/>'},
+  {id:'partner-commissions',label:'Minhas comissões',icon:'<path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/>'},
+];
+function renderSidebar(){
+  var nav=S.role==='admin'?adminNav:partnerNav; var html='';
+  nav.forEach(function(item){
+    if(item.section){ html+='<div class="nav-section">'+item.section+'</div>'; return; }
+    html+='<button class="nav-item" id="nav-'+item.id+'" onclick="navigate(\''+item.id+'\')">'
+      +'<svg viewBox="0 0 24 24" width="16" height="16">'+item.icon+'</svg>'+item.label+'</button>';
+  });
+  document.getElementById('sidebar').innerHTML=html;
+}
+
+// ── NAVIGATION ─────────────────────────────────────
+async function navigate(page){
+  S.page=page;
+  document.querySelectorAll('.nav-item').forEach(function(el){el.classList.remove('active');});
+  var el=document.getElementById('nav-'+page); if(el) el.classList.add('active');
+  document.querySelectorAll('.mob-nav-btn').forEach(function(b){b.classList.remove('active');});
+  var mob=document.getElementById('mob-'+page); if(mob) mob.classList.add('active');
+  var c=document.getElementById('content'); c.innerHTML=ldg();
+  if(page==='pipeline')                 await renderPipeline(c);
+  else if(page==='leads-list')          await renderLeadsList(c);
+  else if(page==='client-referrals')    await renderClientReferrals(c);
+  else if(page==='partners')            await renderPartners(c);
+  else if(page==='commissions')         await renderCommissions(c);
+  else if(page==='report')              await renderReport(c);
+  else if(page==='partner-leads')       await renderPartnerLeads(c);
+  else if(page==='partner-commissions') await renderPartnerCommissions(c);
+}
+
+// ── PIPELINE ───────────────────────────────────────
+async function renderPipeline(c){
+  var leads=await dbLeads(); S.leads=leads;
+  var total=leads.length, fechados=leads.filter(function(l){return l.status==='Fechado';}).length;
+  var novos=leads.filter(function(l){return l.status==='Novo';}).length;
+  var conv=total>0?Math.round(fechados/total*100):0;
+  var h='<div class="page active"><div class="page-header"><div style="display:flex;align-items:center;justify-content:space-between"><div><div class="page-title">Pipeline de leads</div><div class="page-sub">Todos os leads por etapa</div></div>'
+    +'<button class="btn btn-sm" onclick="exportLeadsExcel()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>Exportar Excel</button></div></div>';
+  h+='<div class="metrics">'
+    +'<div class="metric-card accent"><div class="metric-label">Total</div><div class="metric-value">'+total+'</div></div>'
+    +'<div class="metric-card"><div class="metric-label">Novos</div><div class="metric-value">'+novos+'</div></div>'
+    +'<div class="metric-card"><div class="metric-label">Fechados</div><div class="metric-value" style="color:var(--success)">'+fechados+'</div></div>'
+    +'<div class="metric-card"><div class="metric-label">Conversão</div><div class="metric-value">'+conv+'%</div></div>'
+    +'</div>';
+  h+='<div class="pipeline-wrap">';
+  ['Novo','Em contato','Proposta enviada','Fechado','Perdido'].forEach(function(col){
+    var cl=leads.filter(function(l){return l.status===col;});
+    h+='<div class="pipeline-col"><div class="pipeline-col-head">'+col+'<span class="count">'+cl.length+'</span></div>';
+    if(!cl.length) h+='<div style="font-size:12px;color:var(--text-muted);padding:8px;text-align:center">Vazio</div>';
+    cl.forEach(function(l){
+      h+='<div class="p-card" onclick="openDetail(\''+l.id+'\')"><div class="p-card-name">'+l.name+'</div><div class="p-card-product">'+l.product+'</div><div class="p-card-partner">'+l.partner_name+'</div></div>';
+    });
+    h+='</div>';
+  });
+  h+='</div></div>';
+  c.innerHTML=h;
+}
+
+// ── LEADS LIST ─────────────────────────────────────
+var leadsFilter='';
+async function renderLeadsList(c){
+  var leads=await dbLeads(); S.leads=leads;
+  var fil=leadsFilter?leads.filter(function(l){return l.status===leadsFilter;}):leads;
+  var h='<div class="page active"><div class="page-header"><div style="display:flex;align-items:center;justify-content:space-between"><div><div class="page-title">Lista de leads</div><div class="page-sub">Todos os leads</div></div>'
+    +'<button class="btn btn-sm" onclick="exportLeadsExcel()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>Exportar Excel</button></div></div>';
+  h+='<div class="filter-row">';
+  ['','Novo','Em contato','Proposta enviada','Fechado','Perdido'].forEach(function(f){
+    h+='<button class="filter-chip'+(leadsFilter===f?' active':'')+'" onclick="setLeadsFilter(\''+f+'\')">'+(f||'Todos')+'</button>';
+  });
+  h+='</div><div class="card" style="padding:0"><div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Produto</th><th>Parceiro</th><th>Status</th><th>Data</th><th></th></tr></thead><tbody>';
+  if(!fil.length) h+='<tr><td colspan="6"><div class="empty"><div class="empty-text">Nenhum lead encontrado.</div></div></td></tr>';
+  fil.forEach(function(l){
+    h+='<tr><td><div style="font-weight:500">'+l.name+'</div><div style="font-size:11px;color:var(--text-muted)">'+l.tel+'</div></td>'
+      +'<td>'+l.product+'</td>'
+      +'<td><span style="font-size:12px;color:var(--navy-light);background:var(--info-bg);padding:2px 8px;border-radius:20px">'+l.partner_name+'</span></td>'
+      +'<td><span class="badge '+bc(l.status)+'">'+l.status+'</span></td>'
+      +'<td style="color:var(--text-muted);font-size:12px">'+fd(l.created_at)+'</td>'
+      +'<td><button class="btn btn-sm" onclick="openDetail(\''+l.id+'\')">Ver</button></td></tr>';
+  });
+  h+='</tbody></table></div></div></div>'; c.innerHTML=h;
+}
+function setLeadsFilter(f){leadsFilter=f;navigate('leads-list');}
+
+// ── PARTNERS ───────────────────────────────────────
+async function renderPartners(c){
+  var partners=await dbPartners(), leads=await dbLeads();
+  S.partners=partners; S.leads=leads;
+  var h='<div class="page active"><div class="page-header"><div style="display:flex;align-items:center;justify-content:space-between"><div><div class="page-title">Parceiros</div><div class="page-sub">Gestão de parceiros</div></div>'
+    +'<div style="display:flex;gap:8px">'
+    +'<button class="btn" onclick="openChangePassModal()">Alterar senha</button>'
+    +'<button class="btn btn-primary" onclick="openModal(\'modal-partner\')">+ Novo parceiro</button>'
+    +'</div></div></div>';
+  h+='<div class="card" style="padding:0"><div class="table-wrap"><table><thead><tr><th>Parceiro</th><th>Tipo</th><th>Responsável</th><th>PIX / Banco</th><th>Leads</th><th>Fechados</th><th>Comissão</th><th></th></tr></thead><tbody>';
+  if(!partners.length) h+='<tr><td colspan="8"><div class="empty"><div class="empty-text">Nenhum parceiro cadastrado.</div></div></td></tr>';
+  partners.forEach(function(p){
+    var pl=leads.filter(function(l){return l.partner_name===p.name;});
+    var pf=pl.filter(function(l){return l.status==='Fechado';}).length;
+    var pixInfo=p.pix?'<div style="font-weight:500;font-size:12px">'+p.pix+'</div>':'-';
+    var bankInfo=p.bank?'<div style="font-size:11px;color:var(--text-muted)">'+p.bank+(p.agency?' · Ag '+p.agency:'')+(p.account?' · Cc '+p.account:'')+'</div>':'';
+    h+='<tr><td><div style="font-weight:500">'+p.name+'</div><div style="font-size:11px;color:var(--text-muted)">'+p.email+'</div></td>'
+      +'<td><span style="font-size:11px;background:var(--surface2);padding:2px 8px;border-radius:20px">'+p.type+'</span></td>'
+      +'<td>'+p.contact+'</td>'
+      +'<td>'+pixInfo+bankInfo+'</td>'
+      +'<td style="font-weight:500">'+pl.length+'</td>'
+      +'<td style="color:var(--success);font-weight:500">'+pf+'</td>'
+      +'<td>'+p.commission+'%</td>'
+      +'<td><button class="btn btn-sm btn-danger" onclick="confirmDeletePartner(\''+p.id+'\',\''+p.name.replace(/'/g,"\\'")+'\')">'
+      +'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>'
+      +'Excluir</button></td></tr>';
+  });
+  h+='</tbody></table></div></div></div>'; c.innerHTML=h;
+}
+async function savePartner(){
+  var name=document.getElementById('mp-name').value.trim();
+  var type=document.getElementById('mp-type').value;
+  var contact=document.getElementById('mp-contact').value.trim();
+  var tel=document.getElementById('mp-tel').value.trim();
+  var email=document.getElementById('mp-email').value.trim();
+  var commission=parseFloat(document.getElementById('mp-commission').value)||0;
+  var pass=document.getElementById('mp-pass').value;
+  var bank=document.getElementById('mp-bank').value.trim();
+  var pix=document.getElementById('mp-pix').value.trim();
+  var agency=document.getElementById('mp-agency').value.trim();
+  var account=document.getElementById('mp-account').value.trim();
+  if(!name||!pass){alert('Preencha nome e senha.');return;}
+  setBtnLoading('btn-submit-partner',true);
+  var {error}=await db.from('partners').insert({name,type,contact,tel,email,commission,pass,bank,pix,agency,account});
+  setBtnLoading('btn-submit-partner',false);
+  if(error){toast('Erro: '+error.message,false);return;}
+  closeModal('modal-partner');
+  // limpar campos
+  ['mp-name','mp-contact','mp-tel','mp-email','mp-commission','mp-pass','mp-bank','mp-pix','mp-agency','mp-account'].forEach(function(id){
+    var el=document.getElementById(id); if(el) el.value='';
+  });
+  navigate('partners');
+  toast('Parceiro cadastrado!');
+}
+async function openChangePassModal(){
+  var partners=await dbPartners();
+  var sel=document.getElementById('cp-partner');
+  sel.innerHTML='<option value="">Selecione...</option>';
+  partners.forEach(function(p){sel.innerHTML+='<option value="'+p.id+'">'+p.name+'</option>';});
+  document.getElementById('cp-newpass').value='';
+  document.getElementById('cp-confirmpass').value='';
+  openModal('modal-change-pass');
+}
+async function savePartnerPassword(){
+  var partnerId=document.getElementById('cp-partner').value;
+  var newpass=document.getElementById('cp-newpass').value;
+  var confirm=document.getElementById('cp-confirmpass').value;
+  if(!partnerId){alert('Selecione um parceiro.');return;}
+  if(!newpass||newpass.length<6){alert('A senha deve ter pelo menos 6 caracteres.');return;}
+  if(newpass!==confirm){alert('As senhas não coincidem.');return;}
+  setBtnLoading('btn-submit-change-pass',true);
+  var {error}=await db.from('partners').update({pass:newpass}).eq('id',partnerId);
+  setBtnLoading('btn-submit-change-pass',false);
+  if(error){toast('Erro ao alterar senha: '+error.message,false);return;}
+  closeModal('modal-change-pass');
+  toast('Senha alterada com sucesso!');
+}
+
+// ── COMMISSIONS ────────────────────────────────────
+async function renderCommissions(c){
+  var comms=await dbCommissions(), leads=await dbLeads();
+  S.leads=leads;
+  var pend=comms.filter(function(x){return x.status==='Pendente';}).reduce(function(a,x){return a+parseFloat(x.value||0);},0);
+  var paid=comms.filter(function(x){return x.status==='Pago';}).reduce(function(a,x){return a+parseFloat(x.value||0);},0);
+  var h='<div class="page active"><div class="page-header"><div style="display:flex;align-items:center;justify-content:space-between"><div><div class="page-title">Comissões</div><div class="page-sub">Controle de pagamentos por parceiro</div></div>'
+    +'<button class="btn btn-primary" onclick="openCommissionModal()">+ Registrar comissão</button></div></div>';
+  h+='<div class="metrics">'
+    +'<div class="metric-card"><div class="metric-label">Total registrado</div><div class="metric-value">'+fm(pend+paid)+'</div></div>'
+    +'<div class="metric-card"><div class="metric-label">A pagar</div><div class="metric-value" style="color:var(--warning)">'+fm(pend)+'</div></div>'
+    +'<div class="metric-card"><div class="metric-label">Já pago</div><div class="metric-value" style="color:var(--success)">'+fm(paid)+'</div></div>'
+    +'<div class="metric-card"><div class="metric-label">Parceiros</div><div class="metric-value">'
+      +([...new Set(comms.map(function(x){return x.partner_name;}))].length)+'</div></div>'
+    +'</div>';
+  if(!comms.length){ h+='<div class="empty"><div class="empty-text">Nenhuma comissão registrada ainda.</div></div>'; }
+  else {
+    var byP={};
+    comms.forEach(function(x){if(!byP[x.partner_name]) byP[x.partner_name]=[];byP[x.partner_name].push(x);});
+    Object.keys(byP).forEach(function(pname){
+      var items=byP[pname];
+      var pe=items.filter(function(x){return x.status==='Pendente';}).reduce(function(a,x){return a+parseFloat(x.value||0);},0);
+      var pa=items.filter(function(x){return x.status==='Pago';}).reduce(function(a,x){return a+parseFloat(x.value||0);},0);
+      h+='<div class="commission-partner-card"><div style="font-size:15px;font-weight:600;margin-bottom:14px">'+pname+'</div>'
+        +'<div class="commission-totals">'
+        +'<div class="comm-total-box"><div class="comm-total-label">Total</div><div class="comm-total-value">'+fm(pe+pa)+'</div></div>'
+        +'<div class="comm-total-box"><div class="comm-total-label">Pendente</div><div class="comm-total-value" style="color:var(--warning)">'+fm(pe)+'</div></div>'
+        +'<div class="comm-total-box"><div class="comm-total-label">Pago</div><div class="comm-total-value" style="color:var(--success)">'+fm(pa)+'</div></div>'
+        +'</div>';
+      h+='<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr>'
+        +'<th style="text-align:left;padding:6px 8px;font-size:10px;color:var(--text-muted);border-bottom:1px solid var(--border)">Cliente</th>'
+        +'<th style="text-align:left;padding:6px 8px;font-size:10px;color:var(--text-muted);border-bottom:1px solid var(--border)">Produto</th>'
+        +'<th style="padding:6px 8px;font-size:10px;color:var(--text-muted);border-bottom:1px solid var(--border)">Valor</th>'
+        +'<th style="padding:6px 8px;font-size:10px;color:var(--text-muted);border-bottom:1px solid var(--border)">Vencimento</th>'
+        +'<th style="padding:6px 8px;font-size:10px;color:var(--text-muted);border-bottom:1px solid var(--border)">Status</th>'
+        +'<th style="padding:6px 8px;font-size:10px;color:var(--text-muted);border-bottom:1px solid var(--border)">Comprovante</th>'
+        +'<th style="padding:6px 8px;font-size:10px;color:var(--text-muted);border-bottom:1px solid var(--border)"></th>'
+        +'</tr></thead><tbody>';
+      items.forEach(function(x){
+        var recBtn=x.receipt_url
+          ?'<a href="'+x.receipt_url+'" target="_blank" class="receipt-link">'
+            +'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Ver</a>'
+          :'<label class="receipt-link" style="cursor:pointer">'
+            +'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>'
+            +'Anexar<input type="file" style="display:none" accept=".pdf,.jpg,.jpeg,.png" onchange="attachReceipt(event,\''+x.id+'\')"/></label>';
+        h+='<tr><td style="padding:8px">'+x.lead_name+'</td><td style="padding:8px">'+x.product+'</td>'
+          +'<td style="padding:8px;font-weight:500">'+fm(x.value)+'</td>'
+          +'<td style="padding:8px;color:var(--text-muted)">'+x.due_date+'</td>'
+          +'<td style="padding:8px"><span class="badge '+(x.status==='Pago'?'badge-paid':'badge-pending')+'">'+x.status+'</span></td>'
+          +'<td style="padding:8px">'+recBtn+'</td>'
+          +'<td style="padding:8px">'+(x.status==='Pendente'
+            ?'<button class="btn btn-sm btn-gold" onclick="markPaid(\''+x.id+'\')">Marcar pago</button>'
+            :'<span style="font-size:11px;color:var(--text-muted)">Concluído</span>'
+          )+'</td></tr>';
+      });
+      h+='</tbody></table></div>';
+    });
+  }
+  h+='</div>'; c.innerHTML=h;
+}
+async function markPaid(id){
+  var {error}=await db.from('commissions').update({status:'Pago'}).eq('id',id);
+  if(error){toast('Erro: '+error.message,false);return;}
+  toast('Marcado como pago!');
+  navigate('commissions');
+}
+async function openCommissionModal(){
+  var partners=await dbPartners();
+  var sel=document.getElementById('mc-partner');
+  sel.innerHTML='<option value="">Selecione...</option>';
+  partners.forEach(function(p){sel.innerHTML+='<option>'+p.name+'</option>';});
+  document.getElementById('mc-lead').innerHTML='<option value="">Selecione o parceiro primeiro</option>';
+  sel.onchange=function(){loadLeadsForCommission(this.value);};
+  var d=new Date(); d.setDate(d.getDate()+30);
+  document.getElementById('mc-due').value=d.toISOString().split('T')[0];
+  document.getElementById('mc-receipt').value='';
+  document.getElementById('mc-receipt-preview').style.display='none';
+  document.getElementById('mc-receipt-label').innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="display:inline;vertical-align:middle;margin-right:6px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Clique para selecionar o comprovante';
+  openModal('modal-commission');
+}
+async function loadLeadsForCommission(pname){
+  var sel=document.getElementById('mc-lead');
+  sel.innerHTML='<option>Carregando...</option>';
+  var leads=await dbLeads(pname||null);
+  var closed=leads.filter(function(l){return l.status==='Fechado';});
+  sel.innerHTML=closed.length
+    ?'<option value="">Selecione...</option>'+closed.map(function(l){return '<option value="'+l.id+'">'+l.name+' — '+l.product+'</option>';}).join('')
+    :'<option value="">Nenhum lead fechado</option>';
+}
+async function saveCommission(){
+  var partner=document.getElementById('mc-partner').value;
+  var leadId=document.getElementById('mc-lead').value;
+  var value=parseFloat(document.getElementById('mc-value').value);
+  var type=document.getElementById('mc-type').value;
+  var due=document.getElementById('mc-due').value;
+  var status=document.getElementById('mc-status-pay').value;
+  var obs=document.getElementById('mc-obs').value;
+  if(!partner||!leadId||!value){alert('Preencha parceiro, lead e valor.');return;}
+  var lead=S.leads.find(function(l){return l.id===leadId;});
+  setBtnLoading('btn-submit-commission',true);
+  var {data,error}=await db.from('commissions').insert({
+    partner_name:partner, lead_id:leadId,
+    lead_name:lead?lead.name:'—', product:lead?lead.product:'—',
+    value, type, due_date:due, status, obs
+  }).select().single();
+  if(error){setBtnLoading('btn-submit-commission',false);toast('Erro: '+error.message,false);return;}
+  // Upload comprovante se selecionado
+  var fileInput=document.getElementById('mc-receipt');
+  if(data&&fileInput&&fileInput.files&&fileInput.files[0]){
+    var file=fileInput.files[0];
+    var ext=file.name.split('.').pop();
+    var path='comprovantes/'+data.id+'.'+ext;
+    var upRes=await db.storage.from('comprovantes').upload(path,file,{upsert:true});
+    if(!upRes.error){
+      var {data:urlData}=db.storage.from('comprovantes').getPublicUrl(path);
+      await db.from('commissions').update({receipt_url:urlData.publicUrl}).eq('id',data.id);
+    }
+  }
+  setBtnLoading('btn-submit-commission',false);
+  closeModal('modal-commission');
+  navigate('commissions');
+  toast('Comissão registrada!');
+}
+async function attachReceipt(event,commissionId){
+  var file=event.target.files[0]; if(!file) return;
+  toast('Enviando comprovante...');
+  var ext=file.name.split('.').pop();
+  var path='comprovantes/'+commissionId+'.'+ext;
+  var {error}=await db.storage.from('comprovantes').upload(path,file,{upsert:true});
+  if(error){toast('Erro no upload: '+error.message,false);return;}
+  var {data}=db.storage.from('comprovantes').getPublicUrl(path);
+  await db.from('commissions').update({receipt_url:data.publicUrl}).eq('id',commissionId);
+  toast('Comprovante anexado!');
+  navigate('commissions');
+}
+
+// ── REPORT ─────────────────────────────────────────
+async function renderReport(c){
+  var partners=await dbPartners(), leads=await dbLeads(), comms=await dbCommissions();
+  var h='<div class="page active"><div class="page-header"><div class="page-title">Relatório de conversão</div><div class="page-sub">Desempenho por parceiro</div></div>';
+  h+='<div class="card" style="padding:0"><div class="table-wrap"><table><thead><tr><th>Parceiro</th><th>Tipo</th><th>Leads</th><th>Em contato</th><th>Propostas</th><th>Fechados</th><th>Perdidos</th><th>Conversão</th><th>Comissão total</th></tr></thead><tbody>';
+  if(!partners.length) h+='<tr><td colspan="9"><div class="empty"><div class="empty-text">Nenhum parceiro cadastrado.</div></div></td></tr>';
+  partners.forEach(function(p){
+    var pl=leads.filter(function(l){return l.partner_name===p.name;});
+    var cnt={'Novo':0,'Em contato':0,'Proposta enviada':0,'Fechado':0,'Perdido':0};
+    pl.forEach(function(l){cnt[l.status]=(cnt[l.status]||0)+1;});
+    var conv=pl.length>0?Math.round(cnt['Fechado']/pl.length*100):0;
+    var pcomm=comms.filter(function(x){return x.partner_name===p.name;}).reduce(function(a,x){return a+parseFloat(x.value||0);},0);
+    h+='<tr><td style="font-weight:500">'+p.name+'</td>'
+      +'<td style="font-size:12px;color:var(--text-secondary)">'+p.type+'</td>'
+      +'<td style="font-weight:500">'+pl.length+'</td>'
+      +'<td>'+cnt['Em contato']+'</td>'
+      +'<td>'+cnt['Proposta enviada']+'</td>'
+      +'<td style="color:var(--success);font-weight:500">'+cnt['Fechado']+'</td>'
+      +'<td style="color:var(--danger)">'+cnt['Perdido']+'</td>'
+      +'<td><span style="font-weight:600;color:'+(conv>=30?'var(--success)':conv>=15?'var(--warning)':'var(--danger)')+'">'+conv+'%</span></td>'
+      +'<td style="font-weight:500">'+fm(pcomm)+'</td></tr>';
+  });
+  h+='</tbody></table></div></div></div>'; c.innerHTML=h;
+}
+
+// ── INDICA & GANHA — PF ─────────────────────────────
+async function renderClientReferrals(c){
+  var {data:refs,error}=await db.from('client_referrals').select('*').order('created_at',{ascending:false});
+  if(error){c.innerHTML='<div class="empty"><div class="empty-text">Erro ao carregar indicações.</div></div>';return;}
+  refs=refs||[];
+  var total=refs.length;
+  var fechados=refs.filter(function(r){return r.status==='Fechado';}).length;
+  var novos=refs.filter(function(r){return r.status==='Novo';}).length;
+  // Agrupar por CPF para mostrar total por indicador
+  var byCpf={};
+  refs.forEach(function(r){
+    if(!byCpf[r.referrer_cpf]) byCpf[r.referrer_cpf]={name:r.referrer_name,phone:r.referrer_phone,total:0,fechados:0};
+    byCpf[r.referrer_cpf].total++;
+    if(r.status==='Fechado') byCpf[r.referrer_cpf].fechados++;
+  });
+  var totalPagar=Object.values(byCpf).reduce(function(a,v){return a+v.fechados*100;},0);
+
+  var h='<div class="page active"><div class="page-header"><div style="display:flex;align-items:center;justify-content:space-between"><div><div class="page-title">Indica &amp; Ganha — Clientes PF</div><div class="page-sub">Indicações recebidas pelo programa de clientes</div></div>'
+    +'<button class="btn btn-sm" onclick="exportReferralsExcel()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>Exportar Excel</button>'
+    +'</div></div>';
+
+  h+='<div class="metrics">'
+    +'<div class="metric-card accent"><div class="metric-label">Total indicações</div><div class="metric-value">'+total+'</div></div>'
+    +'<div class="metric-card"><div class="metric-label">Novos</div><div class="metric-value">'+novos+'</div></div>'
+    +'<div class="metric-card"><div class="metric-label">Fechados</div><div class="metric-value" style="color:var(--success)">'+fechados+'</div></div>'
+    +'<div class="metric-card"><div class="metric-label">A pagar (R$ 100 cada)</div><div class="metric-value" style="color:var(--warning)">'+fm(totalPagar)+'</div></div>'
+    +'</div>';
+
+  // Ranking de indicadores
+  var cpfs=Object.keys(byCpf);
+  if(cpfs.length){
+    h+='<div class="card" style="margin-bottom:16px"><div style="font-size:14px;font-weight:600;margin-bottom:14px">Ranking de indicadores</div>';
+    h+='<div class="table-wrap"><table><thead><tr><th>Nome</th><th>CPF</th><th>WhatsApp</th><th>Indicações</th><th>Fechadas</th><th>A receber</th></tr></thead><tbody>';
+    cpfs.sort(function(a,b){return byCpf[b].fechados-byCpf[a].fechados;}).forEach(function(cpf){
+      var v=byCpf[cpf];
+      var cpfFmt=cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/,'$1.$2.$3-$4');
+      h+='<tr><td style="font-weight:500">'+v.name+'</td>'
+        +'<td style="font-size:12px;font-family:monospace">'+cpfFmt+'</td>'
+        +'<td>'+v.phone+'</td>'
+        +'<td style="font-weight:500;text-align:center">'+v.total+'</td>'
+        +'<td style="color:var(--success);font-weight:600;text-align:center">'+v.fechados+'</td>'
+        +'<td style="font-weight:600;color:var(--warning)">'+fm(v.fechados*100)+'</td></tr>';
+    });
+    h+='</tbody></table></div></div>';
+  }
+
+  // Lista completa de indicações
+  h+='<div class="card" style="padding:0"><div class="table-wrap"><table><thead><tr><th>Quem indicou</th><th>Cliente indicado</th><th>Produto</th><th>Telefone</th><th>Data</th><th>Status</th><th></th></tr></thead><tbody>';
+  if(!refs.length) h+='<tr><td colspan="7"><div class="empty"><div class="empty-text">Nenhuma indicação recebida ainda.</div></div></td></tr>';
+  refs.forEach(function(r){
+    var cpfFmt=r.referrer_cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/,'$1.$2.$3-$4');
+    h+='<tr>'
+      +'<td><div style="font-weight:500">'+r.referrer_name+'</div><div style="font-size:11px;color:var(--text-muted)">CPF: '+cpfFmt+'</div></td>'
+      +'<td><div style="font-weight:500">'+r.client_name+'</div><div style="font-size:11px;color:var(--text-muted)">'+r.client_phone+'</div></td>'
+      +'<td>'+r.product+'</td>'
+      +'<td style="font-size:12px">'+r.client_phone+'</td>'
+      +'<td style="color:var(--text-muted);font-size:12px">'+fd(r.created_at)+'</td>'
+      +'<td><span class="badge '+bc(r.status)+'">'+r.status+'</span></td>'
+      +'<td>'
+        +'<select onchange="updateReferralStatus(\''+r.id+'\',this.value)" style="font-size:12px;padding:4px 8px;border:1px solid var(--border-strong);border-radius:var(--radius);background:var(--surface);color:var(--text);font-family:inherit">'
+        +['Novo','Em contato','Proposta enviada','Fechado','Perdido'].map(function(s){return '<option'+(r.status===s?' selected':'')+'>'+s+'</option>';}).join('')
+        +'</select>'
+      +'</td>'
+      +'</tr>';
+  });
+  h+='</tbody></table></div></div></div>';
+  c.innerHTML=h;
+}
+async function updateReferralStatus(id,status){
+  var {error}=await db.from('client_referrals').update({status}).eq('id',id);
+  if(error){toast('Erro: '+error.message,false);return;}
+  toast('Status atualizado para "'+status+'"');
+  navigate('client-referrals');
+}
+async function exportReferralsExcel(){
+  toast('Gerando Excel...');
+  var {data:refs}=await db.from('client_referrals').select('*').order('created_at',{ascending:false});
+  if(!refs||!refs.length){toast('Nenhuma indicação para exportar.',false);return;}
+  var rows=refs.map(function(r){
+    return{
+      'Quem indicou': r.referrer_name,
+      'CPF': r.referrer_cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/,'$1.$2.$3-$4'),
+      'WhatsApp (indicador)': r.referrer_phone,
+      'Cliente indicado': r.client_name,
+      'Telefone (cliente)': r.client_phone,
+      'E-mail (cliente)': r.client_email||'',
+      'Produto': r.product,
+      'Status': r.status,
+      'Observação': r.obs||'',
+      'Data': fd(r.created_at),
+      'Recompensa': r.status==='Fechado'?'R$ 100,00':'—'
+    };
+  });
+  try{
+    var ws=XLSX.utils.json_to_sheet(rows);
+    ws['!cols']=[{wch:22},{wch:16},{wch:18},{wch:22},{wch:18},{wch:26},{wch:20},{wch:18},{wch:30},{wch:14},{wch:14}];
+    var wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,'Indica e Ganha',ws);
+    var wbout=XLSX.write(wb,{bookType:'xlsx',type:'array'});
+    var blob=new Blob([wbout],{type:'application/octet-stream'});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a'); a.href=url;
+    a.download='avoseg-indica-ganha-'+new Date().toISOString().slice(0,10)+'.xlsx';
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a); URL.revokeObjectURL(url);
+    toast('Excel exportado!');
+  }catch(e){toast('Erro ao gerar Excel: '+e.message,false);}
+}
+
+// ── PARTNER PORTAL — LEADS ─────────────────────────
+async function renderPartnerLeads(c){
+  var leads=await dbLeads(S.partnerName); S.leads=leads;
+  var fechados=leads.filter(function(l){return l.status==='Fechado';}).length;
+  var ativos=leads.filter(function(l){return l.status!=='Fechado'&&l.status!=='Perdido';}).length;
+  var conv=leads.length>0?Math.round(fechados/leads.length*100):0;
+  var h='<div class="page active">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">'
+    +'<div><div class="page-title">Olá, '+S.partnerName+'</div><div class="page-sub">Acompanhe suas indicações em tempo real</div></div>'
+    +'<button class="btn btn-primary" onclick="openModal(\'modal-lead\')">+ Nova indicação</button></div>';
+  h+='<div class="partner-stats">'
+    +'<div class="partner-stat"><div class="partner-stat-val">'+leads.length+'</div><div class="partner-stat-label">Indicações enviadas</div></div>'
+    +'<div class="partner-stat"><div class="partner-stat-val" style="color:var(--warning)">'+ativos+'</div><div class="partner-stat-label">Em andamento</div></div>'
+    +'<div class="partner-stat"><div class="partner-stat-val" style="color:var(--success)">'+fechados+'</div><div class="partner-stat-label">Fechados ('+conv+'%)</div></div>'
+    +'</div>';
+  h+='<div class="card"><div class="card-title" style="margin-bottom:16px">Minhas indicações</div>';
+  if(!leads.length) h+='<div class="empty"><div class="empty-text">Nenhuma indicação enviada ainda.<br>Clique em "+ Nova indicação" para começar.</div></div>';
+  leads.forEach(function(l){
+    h+='<div class="partner-lead-item">'
+      +'<div class="avatar-circle">'+ini(l.name)+'</div>'
+      +'<div class="partner-lead-info"><div class="partner-lead-name">'+l.name+'</div><div class="partner-lead-meta">'+l.product+' · '+fd(l.created_at)+'</div></div>'
+      +'<span class="badge '+bc(l.status)+'">'+l.status+'</span></div>';
+  });
+  h+='</div></div>'; c.innerHTML=h;
+}
+async function submitLead(){
+  var name=document.getElementById('ml-name').value.trim();
+  var tel=document.getElementById('ml-tel').value.trim();
+  var email=document.getElementById('ml-email').value.trim();
+  var product=document.getElementById('ml-product').value;
+  var obs=document.getElementById('ml-obs').value.trim();
+  if(!name||!tel||!product){alert('Preencha nome, telefone e produto.');return;}
+  setBtnLoading('btn-submit-lead',true);
+  var {data,error}=await db.from('leads').insert({
+    name, tel, email:email||null, product,
+    partner_name:S.partnerName, obs:obs||null, status:'Novo'
+  }).select().single();
+  setBtnLoading('btn-submit-lead',false);
+  if(error){toast('Erro ao enviar: '+error.message,false);return;}
+  if(data) await addHistory(data.id,'new','Lead indicado por '+S.partnerName);
+  closeModal('modal-lead');
+  document.getElementById('ml-name').value=''; document.getElementById('ml-tel').value='';
+  document.getElementById('ml-email').value=''; document.getElementById('ml-product').value='';
+  document.getElementById('ml-obs').value='';
+  navigate('partner-leads');
+  toast('Indicação enviada com sucesso!');
+}
+
+// ── PARTNER PORTAL — COMMISSIONS ───────────────────
+async function renderPartnerCommissions(c){
+  var comms=await dbCommissions(S.partnerName);
+  var pend=comms.filter(function(x){return x.status==='Pendente';}).reduce(function(a,x){return a+parseFloat(x.value||0);},0);
+  var paid=comms.filter(function(x){return x.status==='Pago';}).reduce(function(a,x){return a+parseFloat(x.value||0);},0);
+  var h='<div class="page active"><div class="page-title" style="margin-bottom:4px">Minhas comissões</div>'
+    +'<div class="page-sub" style="margin-bottom:20px">Acompanhe seus ganhos por indicação</div>';
+  h+='<div class="comm-partner-banner">'
+    +'<div><div class="lbl">A receber</div><div class="val">'+fm(pend)+'</div>'
+    +'<div style="font-size:12px;color:rgba(255,255,255,0.4);margin-top:2px">'+comms.filter(function(x){return x.status==='Pendente';}).length+' pendente(s)</div></div>'
+    +'<div style="text-align:right"><div class="lbl">Já recebido</div><div class="val" style="font-size:20px;color:rgba(255,255,255,0.6)">'+fm(paid)+'</div></div>'
+    +'</div>';
+  if(!comms.length) h+='<div class="empty"><div class="empty-text">Nenhuma comissão registrada ainda.</div></div>';
+  else {
+    h+='<div class="card" style="padding:0"><div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Produto</th><th>Valor</th><th>Vencimento</th><th>Status</th><th>Comprovante</th><th>Obs.</th></tr></thead><tbody>';
+    comms.forEach(function(x){
+      var recCell=x.receipt_url
+        ?'<a href="'+x.receipt_url+'" target="_blank" class="receipt-link">'
+          +'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Ver comprovante</a>'
+        :'<span style="font-size:11px;color:var(--text-muted)">—</span>';
+      h+='<tr><td style="font-weight:500">'+x.lead_name+'</td><td>'+x.product+'</td>'
+        +'<td style="font-weight:600">'+fm(x.value)+'</td>'
+        +'<td style="color:var(--text-muted);font-size:12px">'+x.due_date+'</td>'
+        +'<td><span class="badge '+(x.status==='Pago'?'badge-paid':'badge-pending')+'">'+x.status+'</span></td>'
+        +'<td>'+recCell+'</td>'
+        +'<td style="font-size:12px;color:var(--text-muted)">'+x.obs+'</td></tr>';
+    });
+    h+='</tbody></table></div></div>';
+  }
+  h+='</div>'; c.innerHTML=h;
+}
+
+// ── DETAIL PANEL ───────────────────────────────────
+async function openDetail(id){
+  S.selectedLeadId=id;
+  var lead=S.leads.find(function(l){return l.id===id;}); if(!lead) return;
+  document.getElementById('dp-name').textContent=lead.name;
+  document.getElementById('dp-meta').textContent=lead.product+' · '+fd(lead.created_at);
+  document.getElementById('dp-tel').textContent=lead.tel;
+  document.getElementById('dp-email').textContent=lead.email||'—';
+  document.getElementById('dp-product').textContent=lead.product;
+  document.getElementById('dp-partner').textContent=lead.partner_name;
+  document.getElementById('dp-obs').textContent=lead.obs||'Sem observações';
+  document.getElementById('dp-status').value=lead.status;
+  var isAdmin=S.role==='admin';
+  document.getElementById('dp-status-section').style.display=isAdmin?'':'none';
+  document.getElementById('dp-note-row').style.display=isAdmin?'':'none';
+  document.getElementById('dp-delete-btn').style.display=isAdmin?'':'none';
+  document.getElementById('dp-timeline').innerHTML='<div class="loading"><div class="spinner-dark"></div>Carregando...</div>';
+  document.getElementById('detail-overlay').classList.add('open');
+  var hist=await dbHistory(id);
+  renderTimeline(hist);
+}
+function renderTimeline(hist){
+  if(!hist.length){document.getElementById('dp-timeline').innerHTML='<div style="font-size:12px;color:var(--text-muted)">Nenhum histórico ainda.</div>';return;}
+  var h='';
+  hist.forEach(function(item,i){
+    h+='<div class="tl-item"><div class="tl-dot-wrap"><div class="tl-dot '+dc(item.type)+'"></div>'
+      +(i<hist.length-1?'<div class="tl-line"></div>':'')
+      +'</div><div><div class="tl-text">'+item.text+'</div><div class="tl-date">'+fd(item.created_at)+'</div></div></div>';
+  });
+  document.getElementById('dp-timeline').innerHTML=h;
+}
+async function updateLeadStatus(val){
+  var id=S.selectedLeadId; if(!id) return;
+  var {error}=await db.from('leads').update({status:val}).eq('id',id);
+  if(error){toast('Erro: '+error.message,false);return;}
+  await addHistory(id,st(val),'Status atualizado para "'+val+'"');
+  var hist=await dbHistory(id); renderTimeline(hist);
+  var lead=S.leads.find(function(l){return l.id===id;}); if(lead) lead.status=val;
+  toast('Status: "'+val+'"');
+  navigate(S.page);
+}
+async function addNote(){
+  var txt=document.getElementById('dp-note-input').value.trim();
+  var id=S.selectedLeadId; if(!txt||!id) return;
+  await addHistory(id,'note',txt);
+  var hist=await dbHistory(id); renderTimeline(hist);
+  document.getElementById('dp-note-input').value='';
+  toast('Anotação salva!');
+}
+function maybeCloseDetail(e){if(e.target===document.getElementById('detail-overlay')) closeDetailPanel();}
+function closeDetailPanel(){document.getElementById('detail-overlay').classList.remove('open');S.selectedLeadId=null;}
+
+function confirmDeleteLead(){
+  var lead=S.leads.find(function(l){return l.id===S.selectedLeadId;}); if(!lead) return;
+  showConfirm(
+    'Excluir lead',
+    'Excluir "'+lead.name+'"? O histórico também será apagado. Esta ação não pode ser desfeita.',
+    function(){ deleteLead(lead.id,lead.name); }
+  );
+}
+async function deleteLead(id,name){
+  await db.from('lead_history').delete().eq('lead_id',id);
+  var {error}=await db.from('leads').delete().eq('id',id);
+  if(error){toast('Erro ao excluir: '+error.message,false);return;}
+  closeDetailPanel();
+  toast('Lead "'+name+'" excluído.');
+  navigate(S.page);
+}
+function confirmDeletePartner(id,name){
+  showConfirm(
+    'Excluir parceiro',
+    'Excluir "'+name+'"? Os leads associados serão mantidos, mas o parceiro perderá o acesso ao sistema.',
+    function(){ deletePartner(id,name); }
+  );
+}
+async function deletePartner(id,name){
+  var {error}=await db.from('partners').delete().eq('id',id);
+  if(error){toast('Erro ao excluir: '+error.message,false);return;}
+  toast('Parceiro "'+name+'" excluído.');
+  navigate('partners');
+}
+
+// ── KEYBOARD ───────────────────────────────────────
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'){
+    document.querySelectorAll('.modal-overlay.open').forEach(function(m){m.classList.remove('open');});
+    closeDetailPanel();
+  }
+  if(e.key==='Enter'&&document.getElementById('login-screen').style.display!=='none') doLogin();
+});
+</script>
+</body>
+</html>
