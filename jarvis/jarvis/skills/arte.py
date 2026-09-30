@@ -8,8 +8,11 @@ from __future__ import annotations
 import base64
 import html
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
+
+from . import imagem
 
 SIZES = {"feed": (1080, 1350), "quadrado": (1080, 1080), "story": (1080, 1920)}
 ESTILOS = ("misto", "escuro", "claro")
@@ -196,3 +199,58 @@ def make_art(post: dict, brand: Brand, out_dir: Path, formato: str = "", estilo:
              out_dir / f"slide-{i + 1:02d}.png") for i, s in enumerate(slides)]
     (renderer or Renderer()).render(jobs, size)
     return [out for _, out in jobs]
+
+
+def ia_compose_html(png: bytes, size: tuple[int, int], brand: Brand, tipo: str) -> str:
+    """Imagem criada pela IA (com o texto do Claude dentro), ajustada ao formato. Nada de texto por cima, só:
+    o logo num cantinho e, no slide final, uma faixa opaca no rodapé com contatos e aviso legal."""
+    w, h = size
+    src = "data:image/png;base64," + base64.b64encode(png).decode()
+    logo = _data_uri(brand.logo)
+    logo_html = (f'<div style="position:absolute;left:{int(w*.05)}px;top:{int(w*.05)}px;background:rgba(255,255,255,.94);'
+                 f'padding:12px 18px;border-radius:14px"><img src="{logo}" style="height:{int(w*.055)}px;display:block"></div>'
+                 if logo else "")
+    handle = " · ".join(x for x in (brand.instagram, brand.whatsapp, brand.site) if x)
+    band = ""
+    if tipo == "cta" and (handle or brand.rodape):
+        esc = html.escape
+        band = (f'<div style="position:absolute;left:0;right:0;bottom:0;height:{int(h*.085)}px;background:{brand.navy};'
+                f'color:#fff;display:flex;justify-content:space-between;align-items:center;padding:0 {int(w*.05)}px;'
+                f'font-family:Helvetica,Arial,sans-serif;gap:24px"><span style="font-size:{int(w*.026)}px;font-weight:700">'
+                f'{esc(handle)}</span><span style="font-size:{int(w*.02)}px;opacity:.75;text-align:right">{esc(brand.rodape)}</span></div>')
+    return (f'<!doctype html><html><body style="margin:0;width:{w}px;height:{h}px;position:relative;overflow:hidden">'
+            f'<img src="{src}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">'
+            f'{logo_html}{band}</body></html>')
+
+
+def make_art_ia(post: dict, brand: Brand, out_dir: Path, formato: str, gen, renderer: Renderer | None = None,
+                estilo: str = "misto", progress=print, workers: int = 3) -> tuple[list[Path], list[str]]:
+    """A IA desenha cada slide com o texto do Claude. `gen(prompt, api_size) -> bytes`.
+    Se um slide falhar, ele cai para o layout da marca (sem texto duplicado). Devolve (arquivos, avisos)."""
+    estilo = estilo if estilo in ESTILOS else "misto"
+    key, size = _size_for(formato or post.get("formato", ""))
+    slides = plan_slides(post, formato)[:imagem.MAX_SLIDES_IA]
+    api_size = "1024x1024" if key == "quadrado" else "1024x1536"
+    prompts = [imagem.build_slide_prompt(s, post, brand, i, len(slides)) for i, s in enumerate(slides)]
+    results: dict[int, bytes | Exception] = {}
+    with ThreadPoolExecutor(max_workers=max(1, min(workers, len(slides)))) as ex:
+        futures = {ex.submit(gen, p, api_size): i for i, p in enumerate(prompts)}
+        for f in as_completed(futures):
+            i = futures[f]
+            try:
+                results[i] = f.result()
+            except Exception as e:  # noqa: BLE001
+                results[i] = e
+            progress(f"[arte] slide {i + 1}/{len(slides)} {'pronto' if isinstance(results[i], bytes) else 'falhou'}")
+    jobs, avisos = [], []
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for i, s in enumerate(slides):
+        out = out_dir / f"slide-{i + 1:02d}.png"
+        if isinstance(results[i], bytes):
+            (out_dir / f"slide-{i + 1:02d}-ia.png").write_bytes(results[i])
+            jobs.append((ia_compose_html(results[i], size, brand, s.get("tipo", "")), out))
+        else:
+            avisos.append(f"slide {i + 1} caiu para o layout da marca ({results[i]})")
+            jobs.append((slide_html(s, i, len(slides), brand, size, estilo), out))
+    (renderer or Renderer()).render(jobs, size)
+    return [out for _, out in jobs], avisos

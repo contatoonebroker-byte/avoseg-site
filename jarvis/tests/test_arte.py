@@ -107,7 +107,7 @@ def test_criar_post_generates_art_saves_sidecar_and_notifies_screen(sb):
     r, shown = FakeRenderer(), []
     tools, _ = _tools(sb, POST_COM_SLIDES | {"titulo_interno": "Frota sem susto"}, renderer=r, on_art=shown.append)
     out = tools["criar_post"].func(empresa="Avoseg", tema="frota", formato="carrossel")
-    assert "Arte criada: 3 imagem" in out and r.calls and "logo.png" in out         # avisa que falta o logo
+    assert "Arte criada (no layout da marca): 3 imagem" in out and r.calls and "logo.png" in out         # avisa que falta o logo
     assert shown[0]["images"][0].startswith("20-Avoseg/marketing/arte/") and len(shown[0]["images"]) == 3
     assert all((sb.root / i).exists() for i in shown[0]["images"])
     assert list((sb.root / "20-Avoseg" / "marketing").glob("*.json"))
@@ -130,37 +130,80 @@ def test_criar_arte_can_redo_a_saved_post_by_title_and_fails_clearly_without_pos
     assert "Não achei" in novo["criar_arte"].func(referencia="não existe")
 
 
-def test_ai_background_is_automatic_when_configured_and_can_be_turned_off(sb):
-    used = []
+PNG = b"\x89PNG fake ai image"
+
+
+def test_slide_prompt_carries_the_exact_claude_text_and_forbids_extra_text():
+    brand = arte.Brand()
+    slide = POST_COM_SLIDES["slides"][0]
+    p = imagem.build_slide_prompt(slide, POST_COM_SLIDES, brand, 0, 3)
+    assert '"Sua frota parada custa mais"' in p and '"Entenda como proteger"' in p and '"Seguro de frota"' in p
+    assert "EXATAMENTE" in p and "NENHUM outro texto" in p and "#0F2744" in p and "slide 1 de 3" in p
+    cta = imagem.build_slide_prompt(POST_COM_SLIDES["slides"][2], POST_COM_SLIDES, brand, 2, 3)
+    assert "BOTÃO" in cta and '"Chame no WhatsApp"' in cta
+
+
+def test_ai_art_draws_each_slide_with_claude_text_and_writes_nothing_on_top(tmp_path):
+    r, calls = FakeRenderer(), []
+    brand = arte.Brand(instagram="@avoseg", rodape="Sujeito à análise.")
+    files, avisos = arte.make_art_ia(POST_COM_SLIDES, brand, tmp_path, "carrossel",
+                                     lambda prompt, size: calls.append((prompt, size)) or PNG, r, progress=lambda m: None)
+    assert len(calls) == 3 and {c[1] for c in calls} == {"1024x1536"} and avisos == []
+    assert [f.name for f in files] == ["slide-01.png", "slide-02.png", "slide-03.png"]
+    size, htmls = r.calls[0]
+    assert size == (1080, 1350)
+    assert all('<img src="data:image/png;base64' in h and "<h1" not in h for h in htmls)      # nenhum texto nosso sobre a imagem
+    assert "Sujeito à análise." not in htmls[0] and "Sujeito à análise." in htmls[2]         # rodapé legal só na faixa do slide final
+    assert (tmp_path / "slide-01-ia.png").read_bytes() == PNG
+
+
+def test_ai_art_overlays_only_the_real_logo_and_uses_square_size_for_square_posts(tmp_path):
+    logo = tmp_path / "logo.png"
+    logo.write_bytes(b"\x89PNG-logo")
+    r, sizes = FakeRenderer(), []
+    arte.make_art_ia(POST_COM_SLIDES, arte.Brand(logo=logo), tmp_path / "o", "quadrado",
+                     lambda p, size: sizes.append(size) or PNG, r, progress=lambda m: None)
+    assert set(sizes) == {"1024x1024"} and r.calls[0][0] == (1080, 1080)
+    assert "data:image/png;base64,iVBOR" in r.calls[0][1][0] and r.calls[0][1][0].count("<img") == 2   # imagem + logo
+
+
+def test_ai_art_falls_back_to_layout_per_failed_slide_and_caps_cost(tmp_path):
     r = FakeRenderer()
-    fake = lambda prompt, prov, key, model: used.append((prompt, prov, model)) or b"\x89PNGfundo"
 
-    # sem chave: nunca gera, em silêncio (não pede nada ao usuário)
-    tools, _ = _tools(sb, POST_COM_SLIDES, renderer=r, image_fn=fake)
-    out = tools["criar_post"].func(empresa="Avoseg", tema="x")
-    assert "Arte criada" in out and not used and "não está configurada" not in out
-    # pedir explicitamente foto por IA sem chave: avisa
-    assert "não está configurada" in tools["criar_arte"].func(com_ia=True) and not used
+    def gen(prompt, size):
+        if "slide 2 de 3" in prompt:
+            raise RuntimeError("limite de uso")
+        return PNG
 
-    # com chave: usa IA sozinho, sem o usuário pedir
-    cfg = ("openai", "k", "gpt-image-1")
-    tools2, _ = _tools(sb, POST_COM_SLIDES, renderer=r, image_cfg=cfg, image_fn=fake)
-    out = tools2["criar_post"].func(empresa="Avoseg", tema="x")
-    assert "Arte criada" in out and len(used) == 1 and used[0][1] == "openai" and "NÃO inclua texto" in used[0][0]
-    assert "data:image/png;base64" in r.calls[-1][1][0]                              # o fundo entrou na capa
-    # "sem foto": só o layout
-    tools2["criar_arte"].func(com_ia=False)
-    assert len(used) == 1 and "data:image/png;base64" not in r.calls[-1][1][0]
-    # refazer a arte também usa IA por padrão
-    tools2["criar_arte"].func(estilo="escuro")
-    assert len(used) == 2
+    files, avisos = arte.make_art_ia(POST_COM_SLIDES, arte.Brand(), tmp_path, "feed", gen, r, progress=lambda m: None)
+    htmls = r.calls[0][1]
+    assert "<h1" not in htmls[0] and "<h1" in htmls[1] and "<h1" not in htmls[2]          # só o 2º caiu para o layout
+    assert len(avisos) == 1 and "slide 2" in avisos[0] and "limite de uso" in avisos[0]
+    many = {**POST, "slides": [{"tipo": "conteudo", "kicker": "", "titulo": f"t{i}", "texto": ""} for i in range(20)]}
+    calls = []
+    arte.make_art_ia(many, arte.Brand(), tmp_path / "m", "feed", lambda p, s: calls.append(1) or PNG, FakeRenderer(),
+                     progress=lambda m: None)
+    assert len(calls) == imagem.MAX_SLIDES_IA
 
-    # falha do gerador não derruba a arte
-    def boom(*a):
-        raise RuntimeError("cota esgotada")
-    tools3, _ = _tools(sb, POST_COM_SLIDES, renderer=r, image_cfg=cfg, image_fn=boom)
-    out = tools3["criar_post"].func(empresa="Avoseg", tema="y")
-    assert "Arte criada" in out and "cota esgotada" in out
+
+def test_marketing_uses_ai_art_automatically_when_configured_and_layout_when_asked(sb):
+    r, calls = FakeRenderer(), []
+    fake = lambda prompt, prov, key, model, size, quality: calls.append((prov, model, size, quality)) or PNG
+
+    sem_chave, _ = _tools(sb, POST_COM_SLIDES, renderer=r, image_fn=fake)             # sem chave: layout, em silêncio
+    out = sem_chave["criar_post"].func(empresa="Avoseg", tema="x")
+    assert "no layout da marca" in out and not calls and "<h1" in r.calls[-1][1][0]
+    assert "não está configurada" in sem_chave["criar_arte"].func(com_ia=True)
+
+    cfg = ("openai", "k", "gpt-image-1", "low")
+    com_chave, _ = _tools(sb, POST_COM_SLIDES, renderer=r, image_cfg=cfg, image_fn=fake)
+    out = com_chave["criar_post"].func(empresa="Avoseg", tema="y")
+    assert "desenhada pela IA" in out and len(calls) == 3 and calls[0] == ("openai", "gpt-image-1", "1024x1536", "low")
+    assert "<h1" not in r.calls[-1][1][0]                                              # texto só dentro da imagem da IA
+    com_chave["criar_arte"].func(com_ia=False)                                          # "só o layout": grátis
+    assert len(calls) == 3 and "<h1" in r.calls[-1][1][0]
+    com_chave["criar_arte"].func(estilo="escuro")                                       # refazer usa IA por padrão
+    assert len(calls) == 6
 
 
 def test_image_provider_turns_on_with_the_key_and_off_with_off():
@@ -172,8 +215,11 @@ def test_image_provider_turns_on_with_the_key_and_off_with_off():
     assert _image_provider("off", "sk-abc") == "none"
 
 
-def test_openai_image_call_shape_and_error_handling(monkeypatch):
-    seen = {}
+def test_openai_image_call_shape_quality_retry_and_errors(monkeypatch):
+    import io
+    import urllib.error
+
+    seen = []
 
     class Resp:
         def __init__(self, payload): self.payload = payload
@@ -182,18 +228,40 @@ def test_openai_image_call_shape_and_error_handling(monkeypatch):
         def read(self): return json.dumps(self.payload).encode()
 
     def fake_urlopen(req, timeout=0):
-        seen["url"], seen["body"], seen["auth"] = req.full_url, json.loads(req.data), req.headers["Authorization"]
+        body = json.loads(req.data)
+        seen.append((req.full_url, body, req.headers["Authorization"]))
         return Resp({"data": [{"b64_json": base64.b64encode(b"PNGDATA").decode()}]})
 
     monkeypatch.setattr(imagem.urllib.request, "urlopen", fake_urlopen)
     monkeypatch.setattr(imagem.json, "load", lambda r: json.loads(r.read()))
-    assert imagem.generate_background("p", "openai", "KEY", "gpt-image-1") == b"PNGDATA"
-    assert seen["url"].endswith("/v1/images/generations") and seen["body"]["model"] == "gpt-image-1"
-    assert seen["auth"] == "Bearer KEY"
+    assert imagem.generate_image("p", "openai", "KEY", "gpt-image-1", "1024x1536", "medium") == b"PNGDATA"
+    url, body, auth = seen[0]
+    assert url.endswith("/v1/images/generations") and body["quality"] == "medium" and body["size"] == "1024x1536"
+    assert auth == "Bearer KEY"
+
+    tentativas = []
+
+    def picky(req, timeout=0):
+        body = json.loads(req.data)
+        tentativas.append("quality" in body)
+        if "quality" in body:
+            raise urllib.error.HTTPError(req.full_url, 400, "bad", {}, io.BytesIO(b'{"error":{"message":"Unknown parameter: quality"}}'))
+        return Resp({"data": [{"b64_json": base64.b64encode(b"OK").decode()}]})
+
+    monkeypatch.setattr(imagem.urllib.request, "urlopen", picky)
+    monkeypatch.setattr(imagem.json, "load", lambda r: json.loads(r.read()))
+    assert imagem.generate_image("p", "openai", "K") == b"OK" and tentativas == [True, False]     # tenta de novo sem quality
+
+    def denied(req, timeout=0):
+        raise urllib.error.HTTPError(req.full_url, 403, "no", {}, io.BytesIO(b'{"error":{"message":"organization must be verified"}}'))
+
+    monkeypatch.setattr(imagem.urllib.request, "urlopen", denied)
+    with pytest.raises(RuntimeError, match="HTTP 403.*verified"):
+        imagem.generate_image("p", "openai", "K")
     with pytest.raises(RuntimeError, match="não configurado"):
-        imagem.generate_background("p", "none", "", "m")
+        imagem.generate_image("p", "none", "", "m")
     with pytest.raises(RuntimeError, match="OPENAI_API_KEY"):
-        imagem.generate_background("p", "openai", "", "m")
+        imagem.generate_image("p", "openai", "", "m")
 
 
 def test_hud_serves_only_art_images_and_blocks_traversal(tmp_path):

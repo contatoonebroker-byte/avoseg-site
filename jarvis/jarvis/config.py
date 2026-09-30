@@ -42,6 +42,7 @@ class Config:
     image_off: bool
     openai_key: str
     openai_image_model: str
+    image_quality: str
     eleven_key: str
     eleven_voice: str
     eleven_model: str
@@ -87,6 +88,7 @@ class Config:
             image_off=env("IMAGE_PROVIDER", "").lower() == "off",
             openai_key=env("OPENAI_API_KEY", ""),
             openai_image_model=env("OPENAI_IMAGE_MODEL", "gpt-image-1"),
+            image_quality=env("IMAGE_QUALITY", "medium"),
             eleven_key=env("ELEVENLABS_API_KEY", ""),
             eleven_voice=env("ELEVENLABS_VOICE_ID", ""),
             eleven_model=env("ELEVENLABS_MODEL", "eleven_flash_v2_5"),

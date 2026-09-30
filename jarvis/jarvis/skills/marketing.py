@@ -102,7 +102,7 @@ def _post_markdown(d: dict) -> str:
 
 
 def make_tools(brain: Brain, client, model: str, on_change=None, on_post=None, on_art=None,
-               image_cfg: tuple[str, str, str] = ("none", "", "gpt-image-1"), renderer=None, image_fn=None) -> list[Tool]:
+               image_cfg: tuple = ("none", "", "gpt-image-1", "medium"), renderer=None, image_fn=None) -> list[Tool]:
     def especialista(empresa: str, pedido: str, schema: dict, max_tokens: int = 4000) -> dict:
         marca, _ = brain.brand(empresa)
         recentes = [n.title for n in brain.recent(8, None, _area(empresa), "post")]
@@ -129,37 +129,39 @@ def make_tools(brain: Brain, client, model: str, on_change=None, on_post=None, o
                 "Depois salve as respostas com a ferramenta definir_marca.")
 
     state: dict = {"last": None}
-    image_fn = image_fn or imagem.generate_background
+    image_fn = image_fn or imagem.generate_image
 
     def _logo(empresa: str) -> Path | None:
         d = brain.root / AREAS[_area(empresa)] / "marca"
         return next((p for ext in ("png", "jpg", "jpeg") for p in [d / f"logo.{ext}"] if p.exists()), None)
 
     def _fazer_arte(empresa: str, post: dict, note, formato: str = "", estilo: str = "misto", com_ia: bool = False) -> str:
-        """Gera os PNGs da arte para o post e avisa a tela. Devolve um texto de resultado."""
+        """Gera os PNGs da arte e avisa a tela. Com IA: a OpenAI desenha cada slide com o texto do Claude (sem texto
+        nosso por cima). Sem IA: layout da marca. Devolve um texto de resultado."""
         text, _ = brain.brand(empresa)
         brand = arte.brand_from_text(empresa.strip().title() or "Avoseg", text, _logo(empresa))
         out_dir = note.path.parent / "arte" / note.path.stem
-        bg, aviso = None, ""
-        if com_ia:
-            try:
-                provider, key, modelo = image_cfg
-                png = image_fn(imagem.build_prompt(post.get("briefing_visual", ""), post.get("titulo_interno", "")),
-                               provider, key, modelo)
-                bg = out_dir / "fundo-ia.png"
-                bg.parent.mkdir(parents=True, exist_ok=True)
-                bg.write_bytes(png)
-            except Exception as e:
-                aviso = f" (Não usei imagem de IA: {e})"
+        fmt = formato or post.get("formato", "")
+        avisos: list[str] = []
         try:
-            files = arte.make_art(post, brand, out_dir, formato or post.get("formato", ""), estilo, bg, renderer)
+            if com_ia:
+                provider, key, modelo, *rest = image_cfg
+                quality = rest[0] if rest else "medium"
+                files, avisos = arte.make_art_ia(
+                    post, brand, out_dir, fmt,
+                    lambda prompt, api_size: image_fn(prompt, provider, key, modelo, api_size, quality),
+                    renderer, estilo)
+            else:
+                files = arte.make_art(post, brand, out_dir, fmt, estilo, None, renderer)
         except Exception as e:
             return f"A arte não saiu: {e}"
         if on_art:
             on_art({"titulo": post.get("titulo_interno", ""), "pasta": str(out_dir),
                     "images": [str(f.relative_to(brain.root)).replace("\\", "/") for f in files]})
+        aviso = (" Atenção: " + "; ".join(avisos) + ".") if avisos else ""
+        modo = "desenhada pela IA com o texto do post" if com_ia else "no layout da marca"
         sem_logo = "" if brand.logo else " Dica: coloque o logo em " + f"{AREAS[_area(empresa)]}/marca/logo.png para aparecer na arte."
-        return f"Arte criada: {len(files)} imagem(ns) em {out_dir}.{aviso}{sem_logo}"
+        return f"Arte criada ({modo}): {len(files)} imagem(ns) em {out_dir}.{aviso}{sem_logo}"
 
     def criar_arte(estilo: str = "misto", formato: str = "", com_ia: bool | None = None, referencia: str = "",
                    abrir_pasta: bool = False) -> str:
@@ -179,7 +181,7 @@ def make_tools(brain: Brain, client, model: str, on_change=None, on_post=None, o
             com_ia = image_cfg[0] != "none"
         elif com_ia and image_cfg[0] == "none":
             com_ia = False
-            aviso = " A foto por IA não está configurada (falta a OPENAI_API_KEY no .env); fiz a arte só com o layout da marca."
+            aviso = " A arte por IA não está configurada (falta a OPENAI_API_KEY no .env); fiz a arte só com o layout da marca."
         res = _fazer_arte(last["empresa"], last["post"], last["note"], formato, estilo, com_ia) + aviso
         if abrir_pasta:
             import subprocess, sys
@@ -268,16 +270,16 @@ def make_tools(brain: Brain, client, model: str, on_change=None, on_post=None, o
               "formato": {"type": "string", "description": "post, carrossel, reels, stories, artigo, mensagem..."},
               "objetivo": {"type": "string"}, "observacoes": {"type": "string"},
               "com_arte": {"type": "boolean", "description": "Gerar também a arte (padrão: sim)."},
-              "com_ia": {"type": "boolean", "description": "Foto de fundo por IA. Omita: usa IA sozinho quando configurada. "
-                                                          "Envie false só se o usuário pedir 'sem foto' ou 'só o layout'."}},
+              "com_ia": {"type": "boolean", "description": "A IA (OpenAI) desenha a arte inteira com o texto do post. Omita: usa "
+                                                          "sozinho quando configurada. Envie false só se o usuário pedir 'sem IA' ou 'só o layout'."}},
              ["empresa", "tema"], criar_post),
         Tool("criar_arte",
              "Cria ou refaz a ARTE (imagens PNG com a identidade da marca) do último post, ou de um post salvo "
              "pelo título. Use quando o usuário pedir a arte, o design, as imagens do post, outro estilo ou a pasta.",
              {"estilo": {"type": "string", "enum": ["misto", "escuro", "claro"]},
               "formato": {"type": "string", "description": "feed (4:5), quadrado, story (vertical)."},
-              "com_ia": {"type": "boolean", "description": "Foto de fundo por IA. Omita: usa IA sozinho quando configurada. "
-                                                            "Envie false só se o usuário pedir 'sem foto' ou 'só o layout'."},
+              "com_ia": {"type": "boolean", "description": "A IA (OpenAI) desenha a arte inteira com o texto do post. Omita: usa "
+                                                            "sozinho quando configurada. Envie false só se o usuário pedir 'sem IA' ou 'só o layout'."},
               "referencia": {"type": "string", "description": "Título ou id de um post salvo (vazio = o último)."},
               "abrir_pasta": {"type": "boolean", "description": "Abrir a pasta no Finder."}}, [], criar_arte),
         Tool("ideias_de_conteudo", "Gera ideias de conteúdo de marketing para uma empresa e salva no Second Brain.",

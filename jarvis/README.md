@@ -126,9 +126,11 @@ Elas ficam em `20-Avoseg/marketing/arte/<post>/slide-01.png...` e abrem numa gal
 - **Contatos e cores:** diga por voz ("o Instagram da Avoseg é @..., o WhatsApp é ...") ou edite `marca.md`
   (linhas `- Instagram:`, `- WhatsApp:`, `- Site:`, `- Cores: #0F2744 #2563EB #F59E0B`, `- Rodapé legal:`).
 - **Comandos:** "refaça a arte em estilo escuro", "faça a arte para stories", "abre a pasta da arte".
-- **Foto de fundo por IA (opcional):** coloque só a `OPENAI_API_KEY` no `.env`. Daí em diante a capa de todo post ganha
-  uma foto gerada por IA (sem texto; o texto continua sendo do layout). Para um post sem foto, diga "sem foto";
-  para desligar de vez, `IMAGE_PROVIDER=off`. Cada imagem é cobrada pela OpenAI.
+- **Arte desenhada pela OpenAI (opcional):** coloque a `OPENAI_API_KEY` no `.env`. A OpenAI passa a desenhar **a imagem inteira de
+  cada slide, com o texto que o Claude escreveu dentro do pedido** (o Jarvis não escreve nada por cima). Só o logo entra num
+  canto reservado e, no slide final, uma faixa própria com contatos e aviso legal. Cada slide é uma imagem cobrada pela OpenAI
+  (`IMAGE_QUALITY=low|medium|high` controla o custo; limite de 8 slides por post). Se um slide falhar, ele cai para o layout.
+  Para um post só com o layout da marca (grátis): "só o layout". Para desligar de vez: `IMAGE_PROVIDER=off`.
 - A renderização usa o Google Chrome do Mac via Playwright (`pip install -r requirements.txt`; não baixa navegador).
 
 ## Tela HUD

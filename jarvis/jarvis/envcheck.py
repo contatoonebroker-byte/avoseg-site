@@ -13,7 +13,7 @@ KNOWN = [
     "ANTHROPIC_API_KEY", "JARVIS_MODEL", "JARVIS_USER_NAME", "JARVIS_CITY", "JARVIS_BRAIN_DIR", "JARVIS_MARKETING_MODEL",
     "ELEVENLABS_API_KEY", "ELEVENLABS_VOICE_ID", "ELEVENLABS_MODEL", "WHISPER_MODEL", "WHISPER_LANGUAGE",
     "WHISPER_BACKEND", "WHISPER_PROMPT", "SILENCE_SECONDS", "CONVERSATION_MINUTES", "FOLLOW_UP_SECONDS",
-    "OPENAI_API_KEY", "OPENAI_IMAGE_MODEL", "IMAGE_PROVIDER", "SPOTIPY_CLIENT_ID", "SPOTIPY_CLIENT_SECRET",
+    "OPENAI_API_KEY", "OPENAI_IMAGE_MODEL", "IMAGE_QUALITY", "IMAGE_PROVIDER", "SPOTIPY_CLIENT_ID", "SPOTIPY_CLIENT_SECRET",
     "SPOTIPY_REDIRECT_URI", "HUD", "HUD_HOST", "HUD_PORT", "HUD_AUTO_OPEN", "WAKEWORD_MODEL", "WAKEWORD_THRESHOLD",
     "INTRO_AUDIO_FILE", "INTRO_SPOTIFY_URI", "INTRO_SECONDS", "INTRO_LEAD_SECONDS", "INTRO_TAIL_SECONDS",
     "INTRO_DUCK_LEVEL", "INTRO_BED_LEVEL", "INTRO_AFTER_SECONDS",
@@ -64,9 +64,9 @@ def check(path: Path, want: tuple[str, ...] = ("ANTHROPIC_API_KEY", "OPENAI_API_
     if "IMAGE_PROVIDER" in found:
         v = found["IMAGE_PROVIDER"]
         if v.strip().strip("\"'").lower() == "off":
-            out.append("✗ IMAGE_PROVIDER=off DESLIGA a foto por IA. Apague essa linha do .env (ou troque por openai).")
+            out.append("✗ IMAGE_PROVIDER=off DESLIGA a arte por IA. Apague essa linha do .env (ou troque por openai).")
         else:
-            out.append(f"✓ IMAGE_PROVIDER={v} (foto por IA liga sozinha quando há OPENAI_API_KEY)")
+            out.append(f"✓ IMAGE_PROVIDER={v} (a arte por IA liga sozinha quando há OPENAI_API_KEY)")
     for name in want:
         if name not in found:
             close = [k for k in found if difflib.SequenceMatcher(None, k, name).ratio() > 0.75]

@@ -78,7 +78,7 @@ def main() -> None:
     tools += marketing_tools(
         sb, client, cfg.marketing_model, on_change=on_note, on_post=lambda d: hud.publish("post", d),
         on_art=lambda d: hud.card("arte", {**d, "images": ["/arte/" + i for i in d["images"]]}),
-        image_cfg=(cfg.image_provider, cfg.openai_key, cfg.openai_image_model))
+        image_cfg=(cfg.image_provider, cfg.openai_key, cfg.openai_image_model, cfg.image_quality))
     brain = Brain(client, cfg.model, tools, cfg.user_name, cfg.city,
                   profile_provider=sb.read_profile, context_provider=recall)
 
@@ -99,11 +99,11 @@ def main() -> None:
             webbrowser.open(hud.url)
 
     if cfg.image_off:
-        print("Foto por IA: DESLIGADA porque o .env tem IMAGE_PROVIDER=off. Apague essa linha para ligar.")
+        print("Arte por IA: DESLIGADA porque o .env tem IMAGE_PROVIDER=off. Apague essa linha para ligar.")
     elif cfg.image_provider == "none":
-        print("Foto por IA: DESLIGADA (não achei OPENAI_API_KEY no .env; confira com: python scripts/check_env.py)")
+        print("Arte por IA: DESLIGADA (não achei OPENAI_API_KEY no .env; confira com: python scripts/check_env.py)")
     else:
-        print(f"Foto por IA: ligada ({cfg.image_provider}, modelo {cfg.openai_image_model})")
+        print(f"Arte por IA: ligada ({cfg.image_provider}, modelo {cfg.openai_image_model}, qualidade {cfg.image_quality})")
     print("Carregando modelos...")
     stt = Transcriber(cfg.whisper_model, cfg.whisper_language, cfg.whisper_backend, cfg.whisper_prompt)
     wake = WakeWord(cfg.wakeword_model, cfg.wakeword_threshold)
