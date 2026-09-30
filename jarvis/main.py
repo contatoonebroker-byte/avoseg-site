@@ -93,7 +93,7 @@ def main() -> None:
             webbrowser.open(hud.url)
 
     print("Carregando modelos...")
-    stt = Transcriber(cfg.whisper_model, cfg.whisper_language, cfg.whisper_backend)
+    stt = Transcriber(cfg.whisper_model, cfg.whisper_language, cfg.whisper_backend, cfg.whisper_prompt)
     wake = WakeWord(cfg.wakeword_model, cfg.wakeword_threshold)
     ambient = audio.NoiseTracker()
 

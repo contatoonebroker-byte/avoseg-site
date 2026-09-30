@@ -13,6 +13,7 @@ import threading
 PCM_RATE = 24000
 PREBUFFER_BYTES = 6000  # ~125 ms de áudio antes de começar, para não picotar
 FALLBACK_VOICE = "Luciana"  # português do Brasil
+FALLBACK_MODEL = "eleven_flash_v2_5"  # usado se o modelo configurado não existir
 
 
 class Clip:
@@ -60,14 +61,32 @@ class Speaker:
             threading.Thread(target=self._fetch, args=(clip,), daemon=True).start()
         return clip
 
+    def _stream(self, clip: Clip) -> bool:
+        """Baixa o áudio para clip.q. Devolve True se já enviou algum pedaço."""
+        sent = False
+        for chunk in self._client.text_to_speech.convert(
+            voice_id=self.voice_id, text=clip.text, model_id=self.model_id,
+            output_format=f"pcm_{PCM_RATE}",
+        ):
+            if chunk:
+                clip.q.put(chunk)
+                sent = True
+        return sent
+
     def _fetch(self, clip: Clip) -> None:
         try:
-            for chunk in self._client.text_to_speech.convert(
-                voice_id=self.voice_id, text=clip.text, model_id=self.model_id,
-                output_format=f"pcm_{PCM_RATE}",
-            ):
-                if chunk:
-                    clip.q.put(chunk)
+            try:
+                self._stream(clip)
+            except Exception as e:
+                msg = str(e).lower()
+                if "model" in msg and ("not exist" in msg or "not found" in msg) and self.model_id != FALLBACK_MODEL \
+                        and clip.q.empty():
+                    print(f"[tts] Modelo '{self.model_id}' não existe no ElevenLabs; usando '{FALLBACK_MODEL}'. "
+                          "Corrija ELEVENLABS_MODEL no .env.")
+                    self.model_id = FALLBACK_MODEL
+                    self._stream(clip)
+                else:
+                    raise
         except Exception as e:  # rede, plano, chave, cota...
             clip.error = e
         finally:

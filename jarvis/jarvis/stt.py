@@ -6,9 +6,12 @@
 from __future__ import annotations
 
 import platform
+import re
 import sys
 
 import numpy as np
+
+from .secondbrain.store import norm
 
 MLX_MODELS = {
     "tiny": "mlx-community/whisper-tiny-mlx",
@@ -29,8 +32,9 @@ def mlx_repo(model_size: str) -> str:
 
 class Transcriber:
     def __init__(self, model_size: str = "small", language: str = "pt",
-                 backend: str = "auto") -> None:
+                 backend: str = "auto", prompt: str = "") -> None:
         self.language = language
+        self.prompt = prompt.strip()  # vocabulário do dia a dia: ajuda o Whisper em palavras curtas como "anota"
         if backend == "auto":
             backend = "mlx" if is_apple_silicon() else "faster"
         self.backend = backend
@@ -46,13 +50,23 @@ class Transcriber:
 
             self._model = WhisperModel(model_size, device="auto", compute_type="auto")
 
+    def _clean(self, text: str) -> str:
+        """Descarta o texto se for só um pedaço do próprio vocabulário (o Whisper às vezes
+        "repete" o prompt quando ouve ruído)."""
+        text = text.strip()
+        flat = re.sub(r"[^a-z0-9 ]", "", norm(text))
+        if flat and self.prompt and flat in re.sub(r"[^a-z0-9 ]", "", norm(self.prompt)):
+            return ""
+        return text
+
     def transcribe(self, audio: np.ndarray) -> str:
         samples = audio.astype(np.float32) / 32768.0
+        extra = {"initial_prompt": self.prompt} if self.prompt else {}
         if self.backend == "mlx":
             out = self._mlx.transcribe(samples, path_or_hf_repo=self._repo,
-                                       language=self.language)
-            return out["text"].strip()
+                                       language=self.language, **extra)
+            return self._clean(out["text"])
         segments, _ = self._model.transcribe(
-            samples, language=self.language, beam_size=5, vad_filter=True,
+            samples, language=self.language, beam_size=5, vad_filter=True, **extra,
         )
-        return " ".join(s.text.strip() for s in segments).strip()
+        return self._clean(" ".join(s.text.strip() for s in segments))

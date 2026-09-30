@@ -560,3 +560,35 @@ def test_conversation_gives_up_on_repeated_empty_transcripts():
     h = _fix(ConvHarness([(1, ""), (1, ""), (1, "algo sem nome")], minutes=0.1))
     h.conv.run()
     assert h.commands == []                            # sem fala reconhecida e sem nome: nada executado
+
+
+def test_whisper_prompt_echo_is_discarded_but_real_speech_is_kept():
+    from jarvis.stt import Transcriber
+
+    t = object.__new__(Transcriber)
+    t.prompt = "Conversa com o assistente Jarvis. Comandos: Jarvis, anota esta ideia; registra no diário."
+    assert t._clean("Jarvis, anota esta ideia") == ""              # eco do vocabulário (alucinação com ruído)
+    assert t._clean("Jarvis, anota que preciso ligar para o contador") != ""
+    assert t._clean("  ") == ""
+
+
+def test_elevenlabs_unknown_model_falls_back_to_flash_and_still_speaks():
+    from jarvis.tts import Speaker
+
+    seen = []
+
+    class FakeTTS:
+        def convert(self, **kw):
+            seen.append(kw["model_id"])
+            if kw["model_id"] == "eleven_multilingual_v2_5":
+                raise Exception("400 A model with model ID eleven_multilingual_v2_5 does not exist")
+            yield b"\x01\x00"
+
+    sp = Speaker("", "", "eleven_multilingual_v2_5")
+    sp._client = NS(text_to_speech=FakeTTS())
+    clip = sp.prepare("olá")
+    got = []
+    while (c := clip.q.get(timeout=2)) is not None:
+        got.append(c)
+    assert seen == ["eleven_multilingual_v2_5", "eleven_flash_v2_5"] and got == [b"\x01\x00"] and clip.error is None
+    assert sp.model_id == "eleven_flash_v2_5"

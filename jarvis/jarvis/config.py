@@ -16,6 +16,14 @@ def _load_env() -> None:
     load_dotenv(ROOT / ".env")
 
 
+DEFAULT_WHISPER_PROMPT = (
+    "Conversa com o assistente Jarvis, em português do Brasil. Comandos comuns: Jarvis, anota esta ideia; "
+    "anota que preciso ligar para o contador; registra no diário; lembre que eu prefiro; o que eu anotei sobre frota; "
+    "crie um post para a Avoseg; Avogroup; seguro de frota; apólice; indique e ganhe; Sorocaba; Instagram; "
+    "temporizador; toca uma música."
+)
+
+
 @dataclass(frozen=True)
 class Config:
     model: str
@@ -29,6 +37,7 @@ class Config:
     whisper_model: str
     whisper_language: str
     whisper_backend: str
+    whisper_prompt: str
     wakeword_model: str
     wakeword_threshold: float
     intro_audio_file: str
@@ -67,6 +76,7 @@ class Config:
             whisper_model=env("WHISPER_MODEL", "small"),
             whisper_language=env("WHISPER_LANGUAGE", "pt"),
             whisper_backend=env("WHISPER_BACKEND", "auto"),
+            whisper_prompt=env("WHISPER_PROMPT", DEFAULT_WHISPER_PROMPT),
             wakeword_model=env("WAKEWORD_MODEL", "hey_jarvis"),
             wakeword_threshold=float(env("WAKEWORD_THRESHOLD", "0.5")),
             intro_audio_file=env("INTRO_AUDIO_FILE", "assets/intro.mp3"),
