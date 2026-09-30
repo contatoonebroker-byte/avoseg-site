@@ -9,6 +9,8 @@ import json
 import queue
 import re
 import socket
+import subprocess
+import sys
 import threading
 import time
 import urllib.parse
@@ -16,6 +18,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 PAGE = Path(__file__).parent / "hud" / "index.html"
+ART_DIR = re.compile(r"(20-Avoseg|30-Avogroup)/marketing/arte/[\w.\-]+")
 ART_PATH = re.compile(r"(20-Avoseg|30-Avogroup)/marketing/arte/[\w.\-]+/[\w.\-]+\.(png|jpg|jpeg)")
 ART_TYPES = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg"}
 
@@ -84,6 +87,20 @@ class Hud:
             if q in self._subs:
                 self._subs.remove(q)
 
+    def open_art_dir(self, rel: str) -> bool:
+        root = self.art_root
+        if root is None or not ART_DIR.fullmatch(rel) or ".." in rel.split("/"):
+            return False
+        p = (root / rel).resolve()
+        if root.resolve() not in p.parents or not p.is_dir():
+            return False
+        cmd = "open" if sys.platform == "darwin" else "xdg-open"
+        try:
+            subprocess.Popen([cmd, str(p)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except OSError:
+            return False
+        return True
+
     # --- servidor ---
     def start(self) -> str:
         hud = self
@@ -110,6 +127,20 @@ class Hud:
                     self.end_headers()
                     return
                 self.send_error(404)
+
+            def do_POST(self) -> None:
+                # Abre a pasta de uma arte no Finder. Só a própria máquina, só pastas de arte do Second Brain.
+                if self.path != "/abrir" or self.client_address[0] not in ("127.0.0.1", "::1"):
+                    return self.send_error(404)
+                try:
+                    n = min(int(self.headers.get("Content-Length") or 0), 2048)
+                    rel = str(json.loads(self.rfile.read(n) or b"{}").get("pasta", ""))
+                except Exception:
+                    return self.send_error(400)
+                ok = hud.open_art_dir(rel)
+                self.send_response(200 if ok else 404)
+                self.send_header("Content-Length", "0")
+                self.end_headers()
 
             def _art(self, rel: str) -> None:
                 root = hud.art_root

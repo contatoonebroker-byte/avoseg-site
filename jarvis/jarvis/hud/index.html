@@ -149,6 +149,9 @@
   #post .tags { color: var(--accent); font-size: 12px; }
   #post .warn { color: var(--warn); font-size: 12px; }
   @media (max-height: 700px) { .hide-short { display: none; } }
+.artpath{margin-top:12px;padding:10px;border:1px solid var(--line,#1e3a4a);border-radius:6px}
+.artpath small{display:block;color:var(--dim);letter-spacing:.12em;font-size:10px;margin-bottom:4px}
+.artpath code{display:block;font-size:11px;word-break:break-all;user-select:all;margin-bottom:8px;color:#9fe8ff}
 </style>
 </head>
 <body>
@@ -540,6 +543,16 @@ function listCard() { if (lastList) cards.notes(lastList); }
 function openNote(i) { const n = (window.__notes || [])[i]; if (n) noteCard(n, false); }
 function openListed(i) { const n = lastList.items[i]; if (n) noteCard(n, true, lastList.titulo); }
 let lastArt = null;
+function openArtDir() {
+  if (lastArt && lastArt.pasta_rel) fetch("/abrir", { method: "POST", body: JSON.stringify({ pasta: lastArt.pasta_rel }) }).catch(() => {});
+}
+function copyArtPath(btn) {
+  const t = lastArt ? lastArt.pasta : "";
+  const done = () => { btn.textContent = "COPIADO ✓"; setTimeout(() => (btn.textContent = "COPIAR CAMINHO"), 1500); };
+  (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(done).catch(() => {
+    const r = document.createRange(); r.selectNodeContents($("#artpath")); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+  });
+}
 function artBig(i) {
   const el = $("#post");
   el.innerHTML = `<div class="kicker"><span>ARTE · ${i + 1} DE ${lastArt.images.length}</span><button title="Fechar" onclick="closePost()">✕</button></div>
@@ -552,7 +565,8 @@ const cards = {
     lastArt = d; const el = $("#post");
     el.innerHTML = `<div class="kicker"><span>ARTE · ${esc(d.titulo).toUpperCase()}</span><button title="Fechar" onclick="closePost()">✕</button></div>
       <div class="art-grid">${d.images.map((u, i) => `<img src="${esc(u)}" loading="lazy" onclick="artBig(${i})">`).join("")}</div>
-      <p style="margin-top:12px;font-size:11px;color:var(--dim)">Salvo em: ${esc(d.pasta)}</p>
+      <div class="artpath"><small>PASTA DAS ARTES</small><code id="artpath">${esc(d.pasta)}</code>
+        <button class="btn" onclick="openArtDir()">ABRIR PASTA</button> <button class="btn" onclick="copyArtPath(this)">COPIAR CAMINHO</button></div>
       ${window.__post ? `<div style="margin-top:8px"><button class="btn" onclick="render.post(window.__post)">VER LEGENDA E TEXTO</button></div>` : ""}`;
     el.classList.add("show"); clearTimeout(window.__postT); window.__postT = setTimeout(closePost, 300000);
   },

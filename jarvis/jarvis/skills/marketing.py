@@ -156,7 +156,7 @@ def make_tools(brain: Brain, client, model: str, on_change=None, on_post=None, o
         except Exception as e:
             return f"A arte não saiu: {e}"
         if on_art:
-            on_art({"titulo": post.get("titulo_interno", ""), "pasta": str(out_dir),
+            on_art({"titulo": post.get("titulo_interno", ""), "pasta": str(out_dir), "pasta_rel": str(out_dir.relative_to(brain.root)).replace("\\", "/"),
                     "images": [str(f.relative_to(brain.root)).replace("\\", "/") for f in files]})
         aviso = (" Atenção: " + "; ".join(avisos) + ".") if avisos else ""
         modo = "desenhada pela IA com o texto do post" if com_ia else "no layout da marca"
