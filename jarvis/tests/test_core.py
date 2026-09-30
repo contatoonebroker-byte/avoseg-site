@@ -129,3 +129,23 @@ def test_speaker_falls_back_when_elevenlabs_fails():
     sp.say("de novo")
     assert spoken == ["olá", "de novo"]
     assert "plano pago" in sp._reason(Boom())
+
+
+def test_weather_text_formats_open_meteo_data():
+    from jarvis.tools.weather import weather_text
+
+    def fake(url, params):
+        if "geocoding" in url:
+            return {"results": [{"name": "Sorocaba", "latitude": -23.5, "longitude": -47.4}]}
+        return {"current": {"temperature_2m": 27.4, "apparent_temperature": 29.1, "weather_code": 2},
+                "daily": {"temperature_2m_max": [31.2], "temperature_2m_min": [18.6],
+                          "precipitation_probability_max": [40]}}
+
+    out = weather_text("Sorocaba", fetch=fake)
+    assert "27 graus" in out and "parcialmente nublado" in out and "máxima de 31" in out
+
+
+def test_weather_city_not_found():
+    from jarvis.tools.weather import weather_text
+
+    assert "Não encontrei" in weather_text("xyz", fetch=lambda u, p: {})

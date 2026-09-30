@@ -27,9 +27,9 @@ class Tool:
 
 
 def build_tools(cfg, notify: Callable[[str], None]) -> list[Tool]:
-    from . import basic
+    from . import basic, weather
 
-    tools = basic.make_tools(notify)
+    tools = basic.make_tools(notify) + weather.make_tools()
     if cfg.spotify_enabled:
         from . import spotify
 
