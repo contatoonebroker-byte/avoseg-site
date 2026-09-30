@@ -1,0 +1,10 @@
+anthropic>=1.9
+python-dotenv>=1.0
+numpy>=1.26
+sounddevice>=0.4.7
+soundfile>=0.12
+openwakeword>=0.6
+faster-whisper>=1.0
+elevenlabs>=1.0
+spotipy>=2.24
+pytest>=8.0
