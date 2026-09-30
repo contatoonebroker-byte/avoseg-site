@@ -115,6 +115,7 @@ def main() -> None:
             if clip is not None:
                 lat.clear()
                 lat["end"] = time.monotonic()
+                print(f"[fala] {len(clip) / audio.SAMPLE_RATE:.1f}s captados")
             return clip
 
         def transcribe(clip) -> str:

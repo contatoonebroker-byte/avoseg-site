@@ -72,7 +72,7 @@ class Endpointer:
     calibra o ruído de fundo nos primeiros blocos.
     """
 
-    def __init__(self, silence_s: float = 0.6, min_threshold: float = 300.0,
+    def __init__(self, silence_s: float = 0.8, min_threshold: float = 300.0,
                  calibration_blocks: int = 4, noise: float | None = None) -> None:
         self.silence_blocks = max(1, int(silence_s * SAMPLE_RATE / BLOCK))
         self.min_threshold = min_threshold
@@ -86,6 +86,12 @@ class Endpointer:
         self.speaking = False
         self._quiet = 0
 
+    @property
+    def off_threshold(self) -> float:
+        """Histerese: depois que começou a fala, só conta como silêncio abaixo de ~60% do limiar.
+        Assim o final fraco das palavras não corta a frase."""
+        return self.threshold * 0.6
+
     def feed(self, block: np.ndarray) -> bool:
         """Devolve True quando a fala terminou."""
         level = rms(block)
@@ -95,7 +101,7 @@ class Endpointer:
             if self._calib_left == 0:
                 self.threshold = max(self.min_threshold, float(np.mean(self._noise)) * 3)
             return False
-        if level >= self.threshold:
+        if level >= self.threshold or (self.speaking and level >= self.off_threshold):
             self.speaking = True
             self._quiet = 0
         elif self.speaking:
@@ -105,8 +111,8 @@ class Endpointer:
 
 
 def record_utterance(mic: MicStream, start_timeout: float | None = None,
-                     max_seconds: float = 20.0, noise: float | None = None,
-                     silence_s: float = 0.6, min_threshold: float = 300.0,
+                     max_seconds: float = 45.0, noise: float | None = None,
+                     silence_s: float = 0.8, min_threshold: float = 300.0,
                      on_speech=None, on_quiet=None) -> np.ndarray | None:
     """Grava até o usuário parar de falar. None se ninguém falar dentro do prazo.
 
@@ -131,7 +137,7 @@ def record_utterance(mic: MicStream, start_timeout: float | None = None,
                 if on_speech:
                     on_speech()
         else:
-            preroll = (preroll + [block])[-4:]
+            preroll = (preroll + [block])[-6:]
             if on_quiet:
                 on_quiet(block)
             if start_timeout is not None and time.monotonic() - t0 > start_timeout:

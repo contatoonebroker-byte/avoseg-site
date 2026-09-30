@@ -55,6 +55,14 @@ como em "Jarvis, que horas são?" ou só "Jarvis" e esperar o bipe. Fala sem o n
 Passados os minutos sem interação, volta a exigir "Hey Jarvis". Tudo é transcrito localmente (Whisper);
 nada é enviado para fora a menos que o nome seja ouvido. `CONVERSATION_MINUTES=0` desliga o modo.
 
+### Fala cortada ou mal entendida
+- `SILENCE_SECONDS` (padrão 0.8): quanto silêncio ele espera antes de considerar que você terminou. Se ainda cortar no meio
+  de pausas para pensar, aumente para 1.0 ou 1.2.
+- Se a frase parece incompleta ("anota que...", "crie um post sobre..."), ele espera até ~2 s e junta a continuação.
+- O Terminal mostra `[fala] 2.8s captados` a cada fala: serve para ver se o corte foi na captação ou no reconhecimento.
+- Para entender melhor: `WHISPER_MODEL=medium` no `.env` (mais preciso; no M1 ainda é rápido), microfone perto (ou fones com
+  microfone) e vocabulário próprio em `WHISPER_PROMPT`.
+
 ### Velocidade de resposta
 - A voz do ElevenLabs toca **em streaming** (começa no primeiro pedaço) e a próxima frase já vem sendo baixada enquanto a atual toca.
   Use `ELEVENLABS_MODEL=eleven_flash_v2_5` (rápido) em vez de `eleven_multilingual_v2` (mais rico, mais lento).

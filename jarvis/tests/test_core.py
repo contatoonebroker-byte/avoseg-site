@@ -592,3 +592,59 @@ def test_elevenlabs_unknown_model_falls_back_to_flash_and_still_speaks():
         got.append(c)
     assert seen == ["eleven_multilingual_v2_5", "eleven_flash_v2_5"] and got == [b"\x01\x00"] and clip.error is None
     assert sp.model_id == "eleven_flash_v2_5"
+
+
+def test_looks_incomplete_flags_cut_sentences_but_not_complete_commands():
+    from jarvis.incomplete import looks_incomplete as inc
+
+    for cortada in ["anota", "Jarvis, anota que", "crie um post sobre", "preciso ligar para o", "anota a ideia:",
+                    "me manda", "fale com a Maria e", "registra..."]:
+        assert inc(cortada), cortada
+    for completa in ["que horas são", "qual a temperatura em Sorocaba", "anota que preciso ligar para o contador",
+                     "mostre minhas notas", "crie um post sobre seguro de frota", "toca uma música", ""]:
+        assert not inc(completa), completa
+
+
+def test_endpointer_hysteresis_keeps_weak_word_endings_inside_the_sentence():
+    rng = np.random.default_rng(5)
+    at = lambda rms_: (rng.normal(0, rms_, BLOCK)).astype(np.int16)
+    ep = Endpointer(silence_s=0.4, noise=60)            # limiar de início = 300*? (mínimo 300)
+    assert ep.threshold == 300 and ep.off_threshold == 180
+    assert not ep.feed(at(2500)) and ep.speaking
+    weak = [ep.feed(at(230)) for _ in range(12)]        # fim de palavra fraco: abaixo do início, acima do fim
+    assert not any(weak) and ep._quiet == 0
+    assert any(ep.feed(at(20)) for _ in range(12))      # silêncio de verdade encerra
+
+
+def _conv(texts_by_seconds, first_clip_s=1, more_clips=()):
+    """Harness: cada 'clip' é um array de N segundos; a transcrição depende da duração total."""
+    from jarvis.conversation import Conversation
+
+    more = list(more_clips)
+    log = {"asked": [], "records": 0}
+
+    def record(direct, timeout):
+        log["records"] += 1
+        if log["records"] == 1:
+            return np.zeros(16000 * first_clip_s, dtype=np.int16)
+        return np.zeros(16000 * more.pop(0), dtype=np.int16) if more else None
+
+    conv = Conversation(record=record, transcribe=lambda clip: texts_by_seconds[len(clip) // 16000],
+                        ask=log["asked"].append, chime=lambda: None, flush=lambda: None, emit=lambda s: None,
+                        minutes=0, follow_up_s=0.0, continue_wait_s=0.1)
+    return conv, log
+
+
+def test_conversation_joins_the_continuation_of_a_cut_sentence():
+    conv, log = _conv({1: "Jarvis, anota que", 3: "Jarvis, anota que preciso ligar para o contador"}, 1, [2])
+    conv.run(chimed=True)
+    assert log["asked"] == ["anota que preciso ligar para o contador"]
+
+
+def test_conversation_does_not_wait_when_sentence_is_complete_and_gives_up_when_nothing_follows():
+    conv, log = _conv({1: "que horas são"})
+    conv.run(chimed=True)
+    assert log["asked"] == ["que horas são"] and log["records"] >= 1
+    conv2, log2 = _conv({1: "Jarvis, anota"})                      # incompleta, mas ninguém continua
+    conv2.run(chimed=True)
+    assert log2["asked"] == ["anota"]                              # segue com o que tem (o Claude pergunta o resto)

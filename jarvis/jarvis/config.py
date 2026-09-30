@@ -100,7 +100,7 @@ class Config:
             intro_duck=float(env("INTRO_DUCK_LEVEL", "0.25")),
             intro_bed=float(env("INTRO_BED_LEVEL", "0.10")),
             intro_after=float(env("INTRO_AFTER_SECONDS", "10")),
-            silence_s=float(env("SILENCE_SECONDS", "0.6")),
+            silence_s=float(env("SILENCE_SECONDS", "0.8")),
             conversation_minutes=float(env("CONVERSATION_MINUTES", "5")),
             follow_up_s=float(env("FOLLOW_UP_SECONDS", "8")),
             hud_enabled=env("HUD", "1") == "1",

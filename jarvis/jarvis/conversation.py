@@ -3,7 +3,10 @@ from __future__ import annotations
 
 import time
 
+import numpy as np
+
 from .audio import SAMPLE_RATE
+from .incomplete import looks_incomplete
 from .wakename import find_name
 
 FIRST_WAIT_S = 8.0   # depois da hotword (ou do nome), tempo para começar a falar
@@ -21,12 +24,29 @@ class Conversation:
 
     def __init__(self, *, record, transcribe, ask, chime, flush, emit,
                  minutes: float = 5.0, follow_up_s: float = 8.0, on_command=None,
-                 clock=time.monotonic) -> None:
+                 clock=time.monotonic, continue_wait_s: float = 1.8) -> None:
         self.record, self.transcribe, self.ask = record, transcribe, ask
         self.chime, self.flush, self.emit = chime, flush, emit
         self.minutes, self.follow_up_s = minutes, follow_up_s
         self.on_command = on_command
         self.clock = clock
+        self.continue_wait_s = continue_wait_s  # quanto esperar pela continuação de uma frase incompleta
+
+    def _complete(self, clip, text: str) -> str:
+        """Se a frase parece cortada ("anota que...", "crie um post sobre..."), espera um instante e junta a continuação."""
+        for _ in range(2):
+            cmd = find_name(text)
+            cmd = text if cmd is None else cmd
+            if not cmd or not looks_incomplete(cmd):
+                break
+            self.emit("listening")
+            more = self.record(True, self.continue_wait_s)
+            if more is None or len(more) < MIN_CLIP_S * SAMPLE_RATE:
+                break
+            clip = np.concatenate([clip, more])
+            self.emit("thinking")
+            text = self.transcribe(clip)
+        return text
 
     def run(self, chimed: bool = False) -> None:
         now = self.clock()
@@ -53,6 +73,8 @@ class Conversation:
                     direct_until = 0.0
                 continue
             empties = 0
+            if direct or find_name(text) is not None:
+                text = self._complete(clip, text)
 
             rest = find_name(text)
             if rest is None and not direct:
