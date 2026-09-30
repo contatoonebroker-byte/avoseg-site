@@ -72,7 +72,7 @@ class Endpointer:
     calibra o ruído de fundo nos primeiros blocos.
     """
 
-    def __init__(self, silence_s: float = 0.8, min_threshold: float = 300.0,
+    def __init__(self, silence_s: float = 1.0, min_threshold: float = 300.0,
                  calibration_blocks: int = 4, noise: float | None = None) -> None:
         self.silence_blocks = max(1, int(silence_s * SAMPLE_RATE / BLOCK))
         self.min_threshold = min_threshold
@@ -112,7 +112,7 @@ class Endpointer:
 
 def record_utterance(mic: MicStream, start_timeout: float | None = None,
                      max_seconds: float = 45.0, noise: float | None = None,
-                     silence_s: float = 0.8, min_threshold: float = 300.0,
+                     silence_s: float = 1.0, min_threshold: float = 300.0,
                      on_speech=None, on_quiet=None) -> np.ndarray | None:
     """Grava até o usuário parar de falar. None se ninguém falar dentro do prazo.
 

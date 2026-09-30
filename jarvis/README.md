@@ -56,8 +56,8 @@ Passados os minutos sem interação, volta a exigir "Hey Jarvis". Tudo é transc
 nada é enviado para fora a menos que o nome seja ouvido. `CONVERSATION_MINUTES=0` desliga o modo.
 
 ### Fala cortada ou mal entendida
-- `SILENCE_SECONDS` (padrão 0.8): quanto silêncio ele espera antes de considerar que você terminou. Se ainda cortar no meio
-  de pausas para pensar, aumente para 1.0 ou 1.2.
+- `SILENCE_SECONDS` (padrão 1.0): quanto silêncio ele espera antes de considerar que você terminou. Se ainda cortar no meio
+  de pausas para pensar, aumente para 1.2 ou 1.5.
 - Se a frase parece incompleta ("anota que...", "crie um post sobre..."), ele espera até ~2 s e junta a continuação.
 - O Terminal mostra `[fala] 2.8s captados` a cada fala: serve para ver se o corte foi na captação ou no reconhecimento.
 - Para entender melhor: `WHISPER_MODEL=medium` no `.env` (mais preciso; no M1 ainda é rápido), microfone perto (ou fones com
