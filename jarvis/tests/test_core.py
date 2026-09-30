@@ -648,3 +648,29 @@ def test_conversation_does_not_wait_when_sentence_is_complete_and_gives_up_when_
     conv2, log2 = _conv({1: "Jarvis, anota"})                      # incompleta, mas ninguém continua
     conv2.run(chimed=True)
     assert log2["asked"] == ["anota"]                              # segue com o que tem (o Claude pergunta o resto)
+
+
+def test_env_check_finds_common_mistakes_without_leaking_keys(tmp_path):
+    from jarvis.envcheck import check
+
+    env = tmp_path / ".env"
+    env.write_text("ANTHROPIC_API_KEY=sk-ant-SEGREDO123456\n# OPENAI_API_KEY=sk-naoaparece\nOPEN_AI_API_KEY=sk-xyz\n"
+                   "openai_image_model = gpt-image-1\nELEVENLABS_API_KEY=\"abc\"\n")
+    report = "\n".join(check(env))
+    assert "SEGREDO" not in report and "sk-xyz" not in report and "naoaparece" not in report
+    assert "✓ ANTHROPIC_API_KEY: 20 caracteres, começa com 'sk-'" in report
+    assert "COMENTADA" in report and "OPENAI_API_KEY NÃO está no .env" in report
+    assert "MAIÚSCULAS" in report and "entre aspas" in report
+    env.write_text("OPENAI_API_KEY=\nANTHROPIC_API_KEY=x\n")
+    assert "VAZIA" in "\n".join(check(env))
+    assert "Não achei o arquivo" in check(tmp_path / "nao-existe")[0]
+
+
+def test_config_cleans_quotes_spaces_and_dotenv_overrides_empty_shell_variable(tmp_path, monkeypatch):
+    import jarvis.config as cfgmod
+
+    (tmp_path / ".env").write_text('OPENAI_API_KEY = "  sk-abc  "\nJARVIS_CITY=Sorocaba\n')
+    monkeypatch.setattr(cfgmod, "ROOT", tmp_path)
+    monkeypatch.setenv("OPENAI_API_KEY", "")            # variável vazia herdada do Terminal
+    cfg = cfgmod.Config.load()
+    assert cfg.openai_key == "sk-abc" and cfg.image_provider == "openai"

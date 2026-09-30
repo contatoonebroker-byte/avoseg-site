@@ -13,7 +13,7 @@ def _load_env() -> None:
         from dotenv import load_dotenv
     except ImportError:  # dotenv é opcional
         return
-    load_dotenv(ROOT / ".env")
+    load_dotenv(ROOT / ".env", override=True)  # o .env manda, mesmo que o Terminal tenha uma variável igual vazia
 
 
 DEFAULT_WHISPER_PROMPT = (
@@ -73,7 +73,9 @@ class Config:
     @classmethod
     def load(cls) -> "Config":
         _load_env()
-        env = os.environ.get
+        def env(key: str, default: str = "") -> str:   # tira espaços e aspas que sobraram ao colar
+            return os.environ.get(key, default).strip().strip("\"'").strip()
+
         return cls(
             model=env("JARVIS_MODEL", "claude-opus-5-5"),
             user_name=env("JARVIS_USER_NAME", "senhor"),
