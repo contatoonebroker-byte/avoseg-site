@@ -75,6 +75,36 @@ permite analisar o áudio).
 
 A data da última introdução fica em `~/.jarvis_state.json`; apague o arquivo para ouvir de novo.
 
+## Second Brain (sua memória)
+
+Suas notas ficam em **arquivos Markdown** na pasta `~/JarvisBrain/` (mude com `JARVIS_BRAIN_DIR`), organizadas em
+`00-Inbox, 10-Pessoal, 20-Avoseg, 30-Avogroup, 40-Projetos, 50-Pessoas, 70-Diario, 80-Decisoes`.
+Elas abrem em qualquer editor (inclusive Obsidian) e você pode editar à mão: a busca se atualiza sozinha.
+Faça backup dessa pasta e **não a coloque em repositório público**.
+
+| Você diz | O que acontece |
+|---|---|
+| "Jarvis, anota: ideia de post sobre seguro de frota" | Cria a nota (ele escolhe título, área e tags), conecta com notas parecidas e mostra o **cérebro animado** |
+| "O que eu decidi sobre a campanha de frota?" | Busca nas notas e responde |
+| "Registra no diário que fechei a apólice" | Acrescenta ao diário de hoje |
+| "Lembre que eu prefiro respostas curtas" | Guarda em `perfil.md` (o Jarvis lê sempre) |
+| "Mostre meu cérebro" (ou tecla `B` na tela) | Exibe o cérebro com todas as notas |
+
+**Memória automática:** antes de responder, o Jarvis procura notas relevantes para o que você disse e as usa
+("você tinha anotado que..."). Só o trecho relevante vai ao Claude; não guarde senhas nem CPFs nas notas.
+
+**O cérebro na tela:** cada nota é um neurônio (cor por área); notas parecidas se ligam; sinais correm pelas conexões
+e uma nota nova acende. Os neurônios cinzas são a memória ainda livre.
+
+### Skill de marketing
+O Jarvis age como estrategista e copywriter sênior das suas empresas:
+"crie um post sobre seguro de frota para o Instagram da Avoseg", "me dê 5 ideias de conteúdo", "monte o calendário da
+semana". O post completo (gancho, legenda, CTA, hashtags, roteiro, briefing visual, horário e nota de conformidade)
+abre na tela e é salvo em `20-Avoseg/marketing/`. Ele usa o perfil de marca em `20-Avoseg/marca.md` e
+`30-Avogroup/marca.md` (complete os itens "PREENCHA", ou conte por voz e ele salva) e evita repetir posts recentes.
+`JARVIS_MARKETING_MODEL` escolhe o modelo (padrão `claude-opus-5-5`; `claude-sonnet-5-5` é mais rápido e barato).
+Toda peça deve ser revisada quanto às regras de publicidade da SUSEP e da seguradora antes de publicar.
+
 ## Tela HUD
 
 Ao iniciar, o Jarvis abre uma tela futurista no navegador (`http://127.0.0.1:8765`) que reage em tempo real:

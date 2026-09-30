@@ -121,12 +121,25 @@
     .clock { display: none; }
     .bottom { grid-column: 1; }
   }
+  #post { position: fixed; left: 50%; top: 48%; transform: translate(-50%, -50%); width: min(660px, 92vw); max-height: 76vh;
+    overflow: auto; z-index: 6; display: none; pointer-events: auto; padding: 18px 22px 16px; border: 1px solid var(--accent);
+    background: rgba(3, 14, 24, .95); backdrop-filter: blur(8px); box-shadow: 0 0 46px rgba(56, 211, 255, .18); }
+  #post.show { display: block; animation: in .4s ease; }
+  #post .kicker { font-size: 10px; letter-spacing: .26em; color: var(--accent); display: flex; justify-content: space-between; }
+  #post .kicker button { all: unset; cursor: pointer; color: var(--dim); font-size: 14px; }
+  #post h3 { font-size: 17px; font-weight: 500; margin: 8px 0 10px; letter-spacing: .02em; }
+  #post h4 { font-size: 10px; letter-spacing: .24em; color: var(--dim); font-weight: 500; margin: 14px 0 5px; }
+  #post p, #post li { font-size: 13px; line-height: 1.55; white-space: pre-wrap; }
+  #post ol { padding-left: 18px; }
+  #post .tags { color: var(--accent); font-size: 12px; }
+  #post .warn { color: var(--warn); font-size: 12px; }
   @media (max-height: 700px) { .hide-short { display: none; } }
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
 <div id="boot"></div>
+<div id="post"></div>
 
 <div class="layer">
   <div class="title"><b>J.A.R.V.I.S.</b><span>ASSISTENTE PESSOAL DE VOZ</span>
@@ -184,6 +197,8 @@ const STATES = {
   listening: { label: "OUVINDO",       hue: 165, light: 60, speed: .7,  energy: .6 },
   thinking:  { label: "PROCESSANDO",   hue: 40,  light: 60, speed: 2.4, energy: .2 },
   speaking:  { label: "RESPONDENDO",   hue: 205, light: 65, speed: .9,  energy: .85 },
+  note:      { label: "ANOTANDO",      hue: 275, light: 66, speed: .6,  energy: .5 },
+  brain:     { label: "SECOND BRAIN",  hue: 270, light: 64, speed: .4,  energy: .3 },
 };
 let cur = { ...STATES.idle }, target = STATES.idle, stateName = "idle", pulse = 0;
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -192,6 +207,152 @@ function setState(name) { if (!STATES[name]) name = "idle"; stateName = name; ta
 /* ---------- música: espectro e batida chegam do Jarvis (~30x/s) ---------- */
 const music = { bands: new Array(32).fill(0), sm: new Array(32).fill(0), bass: 0, bassSm: 0, kick: 0, at: -1e9 };
 function onLevel(e) { music.bands = e.bands; music.bass = e.bass; if (e.beat) music.kick = 1; music.at = performance.now(); }
+
+/* ---------- Second Brain: neurônios que se movem formando um cérebro ---------- */
+const AREA_ORDER = ["pessoal", "avoseg", "avogroup", "projetos", "pessoas", "diario", "decisoes", "inbox"];
+const AREA_COLOR = { pessoal: "#5eead4", avoseg: "#fbbf24", avogroup: "#c084fc", projetos: "#60a5fa",
+                     pessoas: "#fb7185", diario: "#a3e635", decisoes: "#fb923c", inbox: "#94a3b8" };
+const AREA_LABEL = { pessoal: "PESSOAL", avoseg: "AVOSEG", avogroup: "AVOGROUP", projetos: "PROJETOS",
+                     pessoas: "PESSOAS", diario: "DIÁRIO", decisoes: "DECISÕES", inbox: "INBOX" };
+let brainUntil = 0, brainA = 0;
+const BR = { pts: [], gedges: [], redges: [], pulses: [], prev: null, total: 0, edgesN: 0, newest: null, bornAt: 0, byArea: {} };
+
+// silhueta (vista lateral): córtex com dobras + cerebelo + tronco; coordenadas normalizadas (x: -1..1, y p/ baixo)
+const wob = (a) => 1 + .05 * Math.sin(7 * a) + .03 * Math.sin(13 * a + 1);
+function cortexR(a) { return wob(a); }
+function inBrain(x, y) {
+  const cx = x, cy = y + .05, a = Math.atan2(cy / .68, cx);
+  if ((cx / 1) ** 2 + (cy / .68) ** 2 <= cortexR(a) ** 2 * .92 && y < .5 + .12 * Math.cos(3.2 * x)) return true;   // córtex (base ondulada)
+  if (((x - .5) / .34) ** 2 + ((y - .5) / .19) ** 2 <= 1) return true;                                          // cerebelo
+  if (((x - .1) / .085) ** 2 + ((y - .78) / .24) ** 2 <= 1) return true;                                        // tronco
+  return false;
+}
+function mulberry(seed) { return function () { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+(function buildBrain() {
+  const rnd = mulberry(7), pts = [], minD = .075;
+  for (let tries = 0; tries < 60000 && pts.length < 300; tries++) {
+    const x = rnd() * 2.1 - 1.05, y = rnd() * 1.9 - .75;
+    if (!inBrain(x, y)) continue;
+    if (pts.some((p) => (p.hx - x) ** 2 + (p.hy - y) ** 2 < minD * minD)) continue;
+    pts.push({ hx: x, hy: y, ax: .008 + rnd() * .016, ay: .008 + rnd() * .016, fx: .4 + rnd() * .9, fy: .4 + rnd() * .9, ph: rnd() * 6.28, x: 0, y: 0, real: null });
+  }
+  BR.pts = pts;
+  // conexões "fantasma": cada neurônio liga aos 2-3 vizinhos mais próximos
+  const seen = new Set();
+  pts.forEach((p, i) => {
+    pts.map((q, j) => [((p.hx - q.hx) ** 2 + (p.hy - q.hy) ** 2), j]).filter(([d, j]) => j !== i && d < .022).sort((a, b) => a[0] - b[0]).slice(0, 3)
+      .forEach(([, j]) => { const k = i < j ? i + "-" + j : j + "-" + i; if (!seen.has(k)) { seen.add(k); BR.gedges.push([i, j]); } });
+  });
+  // setores por área (mantém as notas de uma mesma área na mesma região do cérebro)
+  const sectors = AREA_ORDER.map(() => []);
+  pts.forEach((p, i) => { const a = Math.atan2(p.hy + .05, p.hx) + Math.PI; sectors[Math.floor(a / (Math.PI * 2) * AREA_ORDER.length) % AREA_ORDER.length].push(i); });
+  BR.sectors = sectors;
+})();
+
+function setBrainGraph(g) {
+  const used = new Set(), slot = {}, idToPt = {};
+  BR.pts.forEach((p) => { p.real = null; });
+  const prevIds = BR.prev;
+  g.nodes.forEach((n) => {                      // ordem = mais antigas primeiro: cada nota mantém o seu lugar
+    const a = Math.max(0, AREA_ORDER.indexOf(n.area)), list = BR.sectors[a];
+    let idx = list.find((i) => !used.has(i));
+    if (idx === undefined) idx = BR.pts.findIndex((_, i) => !used.has(i));
+    if (idx < 0) return;
+    used.add(idx); idToPt[n.id] = idx; BR.pts[idx].real = n; slot[n.id] = idx;
+  });
+  BR.redges = g.edges.map(([i, j, w]) => [idToPt[g.nodes[i].id], idToPt[g.nodes[j].id], w, g.nodes[i].area]).filter((e) => e[0] !== undefined && e[1] !== undefined);
+  BR.total = g.total || g.nodes.length; BR.edgesN = g.edges.length; BR.byArea = {};
+  g.nodes.forEach((n) => { BR.byArea[n.area] = (BR.byArea[n.area] || 0) + 1; });
+  const fresh = prevIds ? g.nodes.filter((n) => !prevIds.has(n.id)) : [];
+  BR.prev = new Set(g.nodes.map((n) => n.id));
+  if (fresh.length) {                           // nota nova: acende o neurônio e dispara sinais pelas conexões
+    const n = fresh[fresh.length - 1]; BR.newest = slot[n.id]; BR.bornAt = performance.now();
+    BR.redges.filter((e) => e[0] === BR.newest || e[1] === BR.newest).forEach((e) => { for (let k = 0; k < 3; k++) BR.pulses.push({ a: BR.newest, b: e[0] === BR.newest ? e[1] : e[0], t: -k * .25, sp: .55, c: AREA_COLOR[n.area] || "#fff" }); });
+  }
+}
+
+function drawBrain(now, dt, cx, cy, R) {
+  const t = now / 1000, S = R * 1.75;
+  ctx.save(); ctx.globalAlpha = brainA; ctx.translate(cx, cy - S * .1);
+  const br = 1 + Math.sin(t * .8) * .012; ctx.scale(br, br);
+  BR.pts.forEach((p) => { p.x = (p.hx + p.ax * Math.sin(t * p.fx + p.ph)) * S; p.y = (p.hy + p.ay * Math.cos(t * p.fy + p.ph * 1.7)) * S; });
+
+  // halo e contorno do cérebro
+  const g = ctx.createRadialGradient(0, S * .1, S * .1, 0, S * .1, S * 1.3);
+  g.addColorStop(0, col(.16)); g.addColorStop(1, col(0));
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, S * .1, S * 1.3, 0, 7); ctx.fill();
+  ctx.strokeStyle = col(.32); ctx.lineWidth = 1.5 * DPR; ctx.shadowColor = col(.8); ctx.shadowBlur = 12 * DPR;
+  ctx.beginPath();
+  for (let i = 0; i <= 120; i++) { const a = i / 120 * Math.PI * 2, r = cortexR(a) * .96; const x = Math.cos(a) * r * S, y = (Math.sin(a) * r * .68 - .05) * S; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+  ctx.closePath(); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(.5 * S, .5 * S, .36 * S, .2 * S, 0, 0, 7); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(.1 * S, .78 * S, .09 * S, .26 * S, .15, 0, 7); ctx.stroke();
+  ctx.shadowBlur = 0;
+  // sulcos (dobras do córtex)
+  ctx.strokeStyle = col(.16); ctx.lineWidth = 1.2 * DPR;
+  [[[-.75, .05], [-.4, -.35], [.05, -.1], [.4, -.45]], [[-.85, .3], [-.35, .15], [.2, .25], [.75, .05]], [[-.3, -.55], [.1, -.35], [.5, -.2], [.85, -.1]]].forEach((c) => {
+    ctx.beginPath(); ctx.moveTo(c[0][0] * S, c[0][1] * S); ctx.bezierCurveTo(c[1][0] * S, c[1][1] * S, c[2][0] * S, c[2][1] * S, c[3][0] * S, c[3][1] * S); ctx.stroke();
+  });
+
+  // conexões fantasma (rede de fundo) e reais (entre notas)
+  ctx.lineWidth = DPR; ctx.strokeStyle = col(.10);
+  ctx.beginPath(); BR.gedges.forEach(([a, b]) => { ctx.moveTo(BR.pts[a].x, BR.pts[a].y); ctx.lineTo(BR.pts[b].x, BR.pts[b].y); }); ctx.stroke();
+  BR.redges.forEach(([a, b, w, area]) => {
+    ctx.strokeStyle = AREA_COLOR[area] || "#fff"; ctx.globalAlpha = brainA * (.22 + .45 * w); ctx.lineWidth = (1 + w) * DPR;
+    ctx.beginPath(); ctx.moveTo(BR.pts[a].x, BR.pts[a].y); ctx.lineTo(BR.pts[b].x, BR.pts[b].y); ctx.stroke();
+  });
+  ctx.globalAlpha = brainA;
+
+  // sinais viajando pelas conexões
+  const rate = (stateName === "note" ? 16 : 7) + (BR.redges.length ? 3 : 0);
+  if (Math.random() < dt * rate) {
+    const real = BR.redges.length && Math.random() < .55, e = real ? BR.redges[Math.floor(Math.random() * BR.redges.length)] : BR.gedges[Math.floor(Math.random() * BR.gedges.length)];
+    if (e) BR.pulses.push({ a: e[0], b: e[1], t: 0, sp: .5 + Math.random() * .5, c: real ? (AREA_COLOR[e[3]] || "#fff") : null });
+  }
+  BR.pulses = BR.pulses.filter((q) => (q.t += dt * q.sp) < 1);
+  BR.pulses.forEach((q) => {
+    if (q.t < 0) return; const A = BR.pts[q.a], B = BR.pts[q.b], x = A.x + (B.x - A.x) * q.t, y = A.y + (B.y - A.y) * q.t;
+    ctx.fillStyle = q.c || col(.95, 15); ctx.shadowColor = q.c || col(1); ctx.shadowBlur = 10 * DPR;
+    ctx.beginPath(); ctx.arc(x, y, 2.4 * DPR, 0, 7); ctx.fill();
+  });
+  ctx.shadowBlur = 0;
+
+  // neurônios: fantasmas (memória disponível) e reais (suas notas)
+  BR.pts.forEach((p, i) => {
+    if (!p.real) { ctx.fillStyle = col(.42, 8); ctx.beginPath(); ctx.arc(p.x, p.y, 1.7 * DPR, 0, 7); ctx.fill(); return; }
+    const c = AREA_COLOR[p.real.area] || "#fff", r = (3.2 + Math.min(4, p.real.deg * .7)) * DPR;
+    ctx.fillStyle = c; ctx.shadowColor = c; ctx.shadowBlur = 14 * DPR;
+    ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
+  });
+  // nota recém-criada: anel que se expande + rótulo
+  const age = (now - BR.bornAt) / 1000;
+  if (BR.newest !== null && age < 7) {
+    const p = BR.pts[BR.newest], c = AREA_COLOR[p.real && p.real.area] || "#fff", k = (age % 1.4) / 1.4;
+    ctx.strokeStyle = c; ctx.globalAlpha = brainA * (1 - k) * (age < 6 ? 1 : 7 - age); ctx.lineWidth = 2 * DPR;
+    ctx.beginPath(); ctx.arc(p.x, p.y, (6 + k * 34) * DPR, 0, 7); ctx.stroke();
+    ctx.globalAlpha = brainA * Math.min(1, (7 - age)); ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(p.x, p.y, 5.5 * DPR, 0, 7); ctx.fill();
+  }
+  ctx.globalAlpha = brainA; ctx.textAlign = "center";
+  // textos: título, contagem e legenda das áreas
+  ctx.font = `${12 * DPR}px ui-monospace, Menlo, monospace`;
+  ctx.fillStyle = col(.95, 12); ctx.fillText("S E C O N D   B R A I N", 0, -S * .92);
+  ctx.fillStyle = "rgba(205,238,255,.7)"; ctx.fillText(`${BR.total} notas · ${BR.edgesN} conexões`, 0, -S * .92 + 18 * DPR);
+  if (BR.newest !== null && age < 7 && BR.pts[BR.newest].real) {
+    ctx.fillStyle = "#fff"; ctx.font = `${14 * DPR}px ui-monospace, Menlo, monospace`;
+    ctx.fillText("NOVA NOTA  ·  " + BR.pts[BR.newest].real.title, 0, S * 1.12);
+  }
+  ctx.font = `${10 * DPR}px ui-monospace, Menlo, monospace`;
+  const used = AREA_ORDER.filter((a) => BR.byArea[a]), gap = 22 * DPR, dot = 14 * DPR;
+  const widths = used.map((a) => ctx.measureText(AREA_LABEL[a]).width + dot + gap);
+  let lx = -widths.reduce((x, y) => x + y, 0) / 2 + gap / 2;
+  ctx.textAlign = "left";
+  used.forEach((a, i) => {
+    ctx.fillStyle = AREA_COLOR[a]; ctx.beginPath(); ctx.arc(lx + 3 * DPR, S * 1.27, 3 * DPR, 0, 7); ctx.fill();
+    ctx.fillStyle = "rgba(205,238,255,.65)"; ctx.fillText(AREA_LABEL[a], lx + dot, S * 1.27 + 3.5 * DPR); lx += widths[i];
+  });
+  ctx.textAlign = "center";
+  ctx.restore();
+}
 
 let rot = 0, t0 = performance.now();
 const bars = Array.from({ length: 120 }, () => Math.random());
@@ -207,6 +368,8 @@ function frame(now) {
   rot += dt * (cur.speed + music.bassSm * 1.1); pulse += dt * (stateName === "speaking" ? 7 : 2.2);
   ctx.clearRect(0, 0, W, H);
   const cx = W / 2, cy = H * 0.46, R = Math.min(W * 0.15, H * 0.215);
+  brainA = lerp(brainA, now < brainUntil ? 1 : 0, .07);
+  ctx.globalAlpha = Math.max(0, 1 - brainA);     // o reator some quando o cérebro aparece
   ctx.save(); ctx.translate(cx, cy);
   const pump = 1 + music.kick * .04 + music.bassSm * .012;    // o reator "respira" com a batida
   ctx.scale(pump, pump);
@@ -249,6 +412,8 @@ function frame(now) {
     const x = Math.cos(a) * R * .4, y = Math.sin(a) * R * .4; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
   }
   ctx.closePath(); ctx.stroke(); ctx.restore();
+  ctx.globalAlpha = 1;
+  if (brainA > .01) drawBrain(now, dt, cx, cy, R);
   document.documentElement.style.setProperty("--accent", `hsl(${cur.hue} 100% ${cur.light + 5}%)`);
   requestAnimationFrame(frame);
 }
@@ -296,6 +461,17 @@ const render = {
   spotify(d) { sp = d; spAt = Date.now(); renderSpotify(); },
   timers(list) { timers = list; timersAt = Date.now(); renderTimers(); },
   session(d) { session = { ...d, at: Date.now() }; renderSession(); },
+  brain(g) { setBrainGraph(g); },
+  post(d) {
+    const el = $("#post");
+    el.innerHTML = `<div class="kicker"><span>NOVO POST · ${esc(d.empresa).toUpperCase()} · ${esc(d.plataforma).toUpperCase()} · ${esc(d.formato).toUpperCase()}</span><button title="Fechar" onclick="closePost()">✕</button></div>
+      <h3>${esc(d.titulo)}</h3><h4>GANCHO</h4><p>${esc(d.gancho)}</p><h4>LEGENDA</h4><p>${esc(d.legenda)}</p>
+      <h4>CHAMADA PARA AÇÃO</h4><p>${esc(d.cta)}</p><div class="tags">${d.hashtags.map(esc).join(" ")}</div>
+      ${d.roteiro.length ? `<h4>ROTEIRO</h4><ol>${d.roteiro.map((r) => `<li>${esc(r)}</li>`).join("")}</ol>` : ""}
+      <h4>BRIEFING VISUAL</h4><p>${esc(d.visual)}</p><h4>MELHOR HORÁRIO</h4><p>${esc(d.horario)}</p>
+      <h4>CONFORMIDADE</h4><p class="warn">${esc(d.conformidade)}</p>`;
+    el.classList.add("show"); clearTimeout(window.__postT); window.__postT = setTimeout(closePost, 180000);
+  },
   agenda(d) {
     $("#w-agenda").innerHTML = `<h2>AGENDA <small>${d.events.length} HOJE</small></h2>` +
       (d.events.slice(0, 3).map((e) => `<div class="item"><b>${esc(e.time)}</b><span>${esc(e.title)}</span></div>`).join("") || `<div class="muted">Nada marcado para hoje.</div>`);
@@ -331,6 +507,7 @@ function renderSession() {
   const up = session.uptime + Math.floor((Date.now() - session.at) / 1000);
   $("#session").textContent = `COMANDOS ${session.commands} · ATIVO ${fmtDur(up)}`;
 }
+function closePost() { $("#post").classList.remove("show"); }
 function onWidget(name, data) { if (render[name]) render[name](data); }
 
 /* ---------- boot, log e resposta ---------- */
@@ -356,6 +533,9 @@ function addLog(cls, text) {
   log.appendChild(p); while (log.children.length > 8) log.firstChild.remove();
 }
 function onEvent(e) {
+  if (e.state === "note") brainUntil = performance.now() + 11000;            // anotou: mostra o cérebro
+  else if (e.state === "brain") brainUntil = performance.now() + 25000;      // "mostre meu cérebro"
+  else if (e.state === "wake" || e.state === "boot") { brainUntil = 0; closePost(); }
   if (e.state === "boot") { runBoot(); sysOnline(true); } else if (e.state !== "idle") sysOnline(false);
   setState(e.state);
   if (e.user) addLog("me", e.user);
@@ -371,6 +551,7 @@ es.onmessage = (m) => {
 };
 es.onerror = () => { $("#status").textContent = "SEM CONEXÃO COM O NÚCLEO"; };
 window.__hud = { onEvent, onWidget, onLevel };
+addEventListener("keydown", (ev) => { if (ev.key === "b") brainUntil = performance.now() + 25000; if (ev.key === "Escape") closePost(); });
 </script>
 </body>
 </html>

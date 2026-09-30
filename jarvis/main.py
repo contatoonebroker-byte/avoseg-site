@@ -12,6 +12,9 @@ from jarvis.brain import Brain
 from jarvis.config import STATE_FILE, Config
 from jarvis.conversation import Conversation
 from jarvis.hud import Hud
+from jarvis.secondbrain import Brain as SecondBrain
+from jarvis.secondbrain.tools import make_tools as second_brain_tools
+from jarvis.skills.marketing import make_tools as marketing_tools
 from jarvis.intro import DailyIntro
 from jarvis.stt import Transcriber
 from jarvis.tools import build_tools
@@ -50,8 +53,27 @@ def main() -> None:
         from jarvis.tools.spotify import Spotify
 
         spotify = Spotify()
+    # --- Second Brain (memória) + skills ---
+    sb = SecondBrain(cfg.brain_dir)
+    client = anthropic.Anthropic()
+
+    def show_brain() -> None:
+        hud.publish("brain", sb.graph())
+        hud.emit("brain")
+
+    def on_note(note) -> None:          # nota nova: o cérebro na tela ganha um neurônio e se ilumina
+        hud.publish("brain", sb.graph())
+        hud.emit("note", title=note.title, area=note.area)
+
+    def recall(text: str) -> str:       # memória automática: notas relevantes para o que você acabou de dizer
+        return "\n".join(f"- {n.title} ({n.area}, {n.created[:10]}): {n.excerpt(200)}" for n, _ in sb.recall(text, 3))
+
     tools = build_tools(cfg, notify=say, publish=lambda t: hud.publish("timers", t), spotify=spotify)
-    brain = Brain(anthropic.Anthropic(), cfg.model, tools, cfg.user_name, cfg.city)
+    tools += second_brain_tools(sb, on_change=on_note, on_show=show_brain)
+    tools += marketing_tools(sb, client, cfg.marketing_model, on_change=on_note,
+                             on_post=lambda d: hud.publish("post", d))
+    brain = Brain(client, cfg.model, tools, cfg.user_name, cfg.city,
+                  profile_provider=sb.read_profile, context_provider=recall)
 
     intro = DailyIntro(
         STATE_FILE, cfg.intro_audio_file, cfg.intro_spotify_uri, cfg.intro_seconds, cfg.user_name,
@@ -64,6 +86,7 @@ def main() -> None:
         if hud.lan_url():
             print(f"No tablet, abra: {hud.lan_url()}")
         Widgets(hud, cfg.city, spotify).start()
+        hud.publish("brain", sb.graph())
         if cfg.hud_auto_open:
             webbrowser.open(hud.url)
 

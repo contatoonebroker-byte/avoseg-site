@@ -21,6 +21,8 @@ class Config:
     model: str
     user_name: str
     city: str
+    brain_dir: str
+    marketing_model: str
     eleven_key: str
     eleven_voice: str
     eleven_model: str
@@ -57,6 +59,8 @@ class Config:
             model=env("JARVIS_MODEL", "claude-opus-5-5"),
             user_name=env("JARVIS_USER_NAME", "senhor"),
             city=env("JARVIS_CITY", "Sorocaba"),
+            brain_dir=env("JARVIS_BRAIN_DIR", str(Path.home() / "JarvisBrain")),
+            marketing_model=env("JARVIS_MARKETING_MODEL", "claude-opus-5-5"),
             eleven_key=env("ELEVENLABS_API_KEY", ""),
             eleven_voice=env("ELEVENLABS_VOICE_ID", ""),
             eleven_model=env("ELEVENLABS_MODEL", "eleven_flash_v2_5"),

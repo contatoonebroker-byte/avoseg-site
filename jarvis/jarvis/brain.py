@@ -44,18 +44,36 @@ Suas respostas serão FALADAS em voz alta em português do Brasil. Portanto:
 - Antes de qualquer ação irreversível (enviar ou apagar algo), peça confirmação.
 - Se não entender o comando (a transcrição de voz pode ter erros), peça para repetir."""
 
+SECOND_BRAIN_PROMPT = """
+
+Second Brain (a memória permanente do {user}, uma extensão da mente dele):
+- Quando ele pedir para anotar, lembrar, registrar uma ideia, decisão, tarefa, reunião ou algo sobre alguém, use a \
+ferramenta anotar, escolhendo você mesmo título curto, área e tags. Confirme em uma frase curta o que guardou e, se houver, \
+com o que conectou.
+- Ao receber um bloco "[Notas relevantes]" junto do pedido, use-o como memória do {user}: cite o que ele já anotou quando \
+ajudar ("você tinha anotado que..."), sem ler as notas inteiras em voz alta.
+- Para perguntas como "o que decidi sobre X?" ou "o que combinei com Fulano?", use buscar_notas e ler_nota.
+- Preferências e fatos duradouros sobre ele vão para lembrar_sobre_mim.
+- Marketing: para posts, ideias de conteúdo e calendário das empresas (Avoseg, Avogroup), use criar_post, \
+ideias_de_conteudo e planejar_calendario. O resultado completo fica na tela e no Second Brain: fale só o gancho e o \
+essencial, e ofereça ler a legenda. Se faltar o perfil de marca, faça poucas perguntas e salve com definir_marca."""
+
 MAX_HISTORY = 24  # mensagens mantidas na conversa
 MAX_TOOL_ROUNDS = 6
 
 
 class Brain:
     def __init__(self, client, model: str, tools: list[Tool], user_name: str = "senhor",
-                 city: str = "Sorocaba") -> None:
+                 city: str = "Sorocaba", profile_provider=None, context_provider=None) -> None:
         self.client = client
         self.model = model
         self.tools = {t.name: t for t in tools}
         self.tool_schemas = [t.schema() for t in tools]
         self.system = SYSTEM_TEMPLATE.format(user=user_name, city=city)
+        if "anotar" in self.tools:
+            self.system += SECOND_BRAIN_PROMPT.format(user=user_name)
+        self.profile_provider = profile_provider    # () -> texto do perfil do usuário (Second Brain)
+        self.context_provider = context_provider    # (texto) -> notas relevantes para este pedido
         self.messages: list[dict] = []
 
     def _trim(self) -> None:
@@ -90,11 +108,21 @@ class Brain:
     def ask(self, text: str, on_sentence=None) -> str:
         """Responde ao comando. Com `on_sentence`, cada frase é entregue assim que fica pronta
         (para começar a falar antes de a resposta inteira terminar)."""
-        self.messages.append({"role": "user", "content": text})
+        content = text
+        if self.context_provider:
+            try:
+                extra = self.context_provider(text)
+            except Exception:
+                extra = ""
+            if extra:
+                content = f"{text}\n\n[Notas relevantes do Second Brain]\n{extra}"
+        self.messages.append({"role": "user", "content": content})
         self._trim()
         for _ in range(MAX_TOOL_ROUNDS):
-            kwargs = dict(model=self.model, max_tokens=1024, system=self.system,
-                          messages=self.messages)
+            system = self.system
+            if self.profile_provider and (profile := self.profile_provider()):
+                system += f"\n\nSobre o usuário (do perfil no Second Brain):\n{profile}"
+            kwargs = dict(model=self.model, max_tokens=1024, system=system, messages=self.messages)
             if not self.model.startswith("claude-haiku"):  # Haiku 4.5 não aceita o parâmetro effort
                 kwargs["output_config"] = {"effort": "low"}
             if self.tool_schemas:
