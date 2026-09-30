@@ -62,15 +62,19 @@ def main() -> None:
         while True:
             hud.emit("idle")
             wake.wait(mic)
+            chimed = False
             if intro.should_play():
                 hud.emit("boot")
-                intro.run(say)  # primeira vez do dia: música + saudação já na hotword
+                # primeira vez do dia: música + saudação; o bipe soa quando a música começa a sumir
+                intro.run(say, on_ending=audio.chime)
+                chimed = True
             else:
                 hud.emit("wake")
             timeout = None  # primeira fala após a hotword: espera sem pressa
             while True:
-                if timeout is None:
+                if timeout is None and not chimed:
                     audio.chime()  # só após a hotword; nos acompanhamentos fica em silêncio
+                chimed = False
                 mic.flush()
                 hud.emit("listening")
                 clip = audio.record_utterance(mic, start_timeout=timeout or 8.0)

@@ -176,14 +176,15 @@ def test_intro_sequence_music_then_duck_then_speech_then_fade(tmp_path):
         def set_volume(self, level, seconds=1.0):
             events.append(("duck", level))
 
-        def fade_out(self, seconds=2.5):
-            events.append("fade")
+        def fade_out(self, seconds=2.5, block=True):
+            events.append(("fade", block))
 
     intro = DailyIntro(tmp_path / "s.json", lead=7, tail=5, duck=0.3,
                        sleep=lambda s: events.append(("sleep", s)))
     intro._start_music = lambda: (events.append("start"), FakePlayer())[1]
-    intro.run(lambda t: events.append("speak"))
-    assert events == ["start", ("sleep", 7), ("duck", 0.3), "speak", ("sleep", 5), "fade"]
+    intro.run(lambda t: events.append("speak"), on_ending=lambda: events.append("chime"))
+    # o bipe vem logo depois de o fade-out começar (sem esperá-lo terminar)
+    assert events == ["start", ("sleep", 7), ("duck", 0.3), "speak", ("sleep", 5), ("fade", False), "chime"]
 
 
 def test_hud_serves_page_and_streams_events():

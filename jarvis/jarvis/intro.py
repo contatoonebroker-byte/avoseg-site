@@ -59,10 +59,17 @@ class MusicPlayer:
         )
         self._stream.start()
 
-    def fade_out(self, seconds: float = 2.5) -> None:
+    def fade_out(self, seconds: float = 2.5, block: bool = True) -> None:
         self.set_volume(0.0, seconds)
-        self.done.wait(seconds + 1.0)
-        self.stop()
+
+        def finish() -> None:
+            self.done.wait(seconds + 1.0)
+            self.stop()
+
+        if block:
+            finish()
+        else:  # o fade segue sozinho; quem chamou já pode continuar (ex.: bipe)
+            threading.Thread(target=finish, daemon=True).start()
 
     def stop(self) -> None:
         if self._stream is not None:
@@ -82,7 +89,7 @@ class SpotifyMusic:
     def set_volume(self, level: float, seconds: float = 1.0) -> None:
         self.sp.set_volume(int(self.base * level))
 
-    def fade_out(self, seconds: float = 2.5) -> None:
+    def fade_out(self, seconds: float = 2.5, block: bool = True) -> None:
         self.sp.pause()
         self.sp.set_volume(self.base)
 
@@ -136,8 +143,12 @@ class DailyIntro:
         player.start()
         return player
 
-    def run(self, speak) -> None:
-        """Música entra, abaixa para a saudação, continua ao fundo e some suavemente."""
+    def run(self, speak, on_ending=None) -> None:
+        """Música entra, abaixa para a saudação, continua ao fundo e some suavemente.
+
+        `on_ending` é chamado assim que o fade-out começa (ex.: bipe de "estou ouvindo"),
+        sem esperar a música acabar.
+        """
         self.mark_played()
         player = self._start_music()
         try:
@@ -149,4 +160,6 @@ class DailyIntro:
                 self._sleep(self.tail)
         finally:
             if player:
-                player.fade_out(2.5)
+                player.fade_out(2.5, block=False)
+        if on_ending:
+            on_ending()
