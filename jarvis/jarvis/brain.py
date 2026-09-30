@@ -47,6 +47,7 @@ Suas respostas serão FALADAS em voz alta em português do Brasil. Portanto:
 SECOND_BRAIN_PROMPT = """
 
 Second Brain (a memória permanente do {user}, uma extensão da mente dele):
+- NUNCA diga que anotou, guardou ou criou algo sem ter chamado a ferramenta correspondente nesta mesma resposta.
 - Quando ele pedir para anotar, lembrar, registrar uma ideia, decisão, tarefa, reunião ou algo sobre alguém, use a \
 ferramenta anotar, escolhendo você mesmo título curto, área e tags. Confirme em uma frase curta o que guardou e, se houver, \
 com o que conectou.
@@ -88,6 +89,7 @@ class Brain:
         return msg["role"] == "user" and isinstance(msg["content"], str)
 
     def _run_tool(self, name: str, args: dict) -> tuple[str, bool]:
+        print(f"[ferramenta] {name}({', '.join(args)})")
         tool = self.tools.get(name)
         if tool is None:
             return f"Ferramenta desconhecida: {name}", True

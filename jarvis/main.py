@@ -56,12 +56,14 @@ def main() -> None:
     # --- Second Brain (memória) + skills ---
     sb = SecondBrain(cfg.brain_dir)
     client = anthropic.Anthropic()
+    print(f"Second Brain: {sb.count()} notas em {sb.root}")
 
     def show_brain() -> None:
         hud.publish("brain", sb.graph())
         hud.emit("brain")
 
     def on_note(note) -> None:          # nota nova: o cérebro na tela ganha um neurônio e se ilumina
+        print(f"[cérebro] nota salva: {note.title!r} -> {note.path}")
         hud.publish("brain", sb.graph())
         hud.emit("note", title=note.title, area=note.area)
 
