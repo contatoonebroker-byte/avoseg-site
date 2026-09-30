@@ -108,3 +108,24 @@ def test_mlx_model_mapping():
     assert mlx_repo("small") == "mlx-community/whisper-small-mlx"
     assert mlx_repo("large-v3") == "mlx-community/whisper-large-v3-mlx"
     assert mlx_repo("org/custom") == "org/custom"
+
+
+def test_speaker_falls_back_when_elevenlabs_fails():
+    from jarvis.tts import Speaker
+
+    class Boom(Exception):
+        status_code = 402
+        body = {"detail": {"message": "plano pago necessário"}}
+
+    class FakeTTS:
+        def convert(self, **kw):
+            raise Boom()
+
+    sp = Speaker("", "", "m")
+    sp._client = NS(text_to_speech=FakeTTS())
+    spoken = []
+    sp._fallback = spoken.append
+    sp.say("olá")
+    sp.say("de novo")
+    assert spoken == ["olá", "de novo"]
+    assert "plano pago" in sp._reason(Boom())
