@@ -45,6 +45,8 @@ def main() -> None:
     with audio.MicStream() as mic:
         while True:
             wake.wait(mic)
+            if intro.should_play():
+                intro.run(say)  # primeira vez do dia: música + saudação já na hotword
             timeout = None  # primeira fala após a hotword: espera sem pressa
             while True:
                 if timeout is None:
@@ -57,8 +59,6 @@ def main() -> None:
                 if not text:
                     break
                 print(f"VOCÊ: {text}")
-                if intro.should_play():
-                    intro.run(say)
                 try:
                     say(brain.ask(text))
                 except anthropic.APIError as e:
