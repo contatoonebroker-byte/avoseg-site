@@ -61,6 +61,12 @@ def check(path: Path, want: tuple[str, ...] = ("ANTHROPIC_API_KEY", "OPENAI_API_
             close = difflib.get_close_matches(name, KNOWN, n=1, cutoff=0.75)
             if close:
                 out.append(f"✗ Linha {n}: '{name}' não existe. Você quis dizer {close[0]}?")
+    if "IMAGE_PROVIDER" in found:
+        v = found["IMAGE_PROVIDER"]
+        if v.strip().strip("\"'").lower() == "off":
+            out.append("✗ IMAGE_PROVIDER=off DESLIGA a foto por IA. Apague essa linha do .env (ou troque por openai).")
+        else:
+            out.append(f"✓ IMAGE_PROVIDER={v} (foto por IA liga sozinha quando há OPENAI_API_KEY)")
     for name in want:
         if name not in found:
             close = [k for k in found if difflib.SequenceMatcher(None, k, name).ratio() > 0.75]

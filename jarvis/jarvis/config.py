@@ -39,6 +39,7 @@ class Config:
     brain_dir: str
     marketing_model: str
     image_provider: str
+    image_off: bool
     openai_key: str
     openai_image_model: str
     eleven_key: str
@@ -83,6 +84,7 @@ class Config:
             brain_dir=env("JARVIS_BRAIN_DIR", str(Path.home() / "JarvisBrain")),
             marketing_model=env("JARVIS_MARKETING_MODEL", "claude-opus-5-5"),
             image_provider=_image_provider(env("IMAGE_PROVIDER", ""), env("OPENAI_API_KEY", "")),
+            image_off=env("IMAGE_PROVIDER", "").lower() == "off",
             openai_key=env("OPENAI_API_KEY", ""),
             openai_image_model=env("OPENAI_IMAGE_MODEL", "gpt-image-1"),
             eleven_key=env("ELEVENLABS_API_KEY", ""),

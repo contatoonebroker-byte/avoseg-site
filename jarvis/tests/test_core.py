@@ -695,3 +695,19 @@ def test_openai_check_reports_key_and_model_access_without_spending(monkeypatch)
     assert out[0].startswith("✓") and out[1].startswith("✗") and "HTTP 404" in out[1] and "do not have access" in out[1]
     out = test_openai("k", "m", lambda *a, **k: (_ for _ in ()).throw(OSError("rede fora")))
     assert all("sem conexão" in x for x in out)
+
+
+def test_image_off_is_reported_clearly_even_with_a_valid_key(tmp_path, monkeypatch):
+    import jarvis.config as cfgmod
+    from jarvis.envcheck import check
+
+    (tmp_path / ".env").write_text("OPENAI_API_KEY=sk-abc\nIMAGE_PROVIDER=off\n")
+    monkeypatch.setattr(cfgmod, "ROOT", tmp_path)
+    monkeypatch.delenv("IMAGE_PROVIDER", raising=False)
+    cfg = cfgmod.Config.load()
+    assert cfg.image_provider == "none" and cfg.image_off is True and cfg.openai_key == "sk-abc"
+    assert any("IMAGE_PROVIDER=off DESLIGA" in x for x in check(tmp_path / ".env"))
+    (tmp_path / ".env").write_text("OPENAI_API_KEY=sk-abc\n")
+    monkeypatch.delenv("IMAGE_PROVIDER", raising=False)
+    cfg = cfgmod.Config.load()
+    assert cfg.image_provider == "openai" and cfg.image_off is False

@@ -98,7 +98,9 @@ def main() -> None:
         if cfg.hud_auto_open:
             webbrowser.open(hud.url)
 
-    if cfg.image_provider == "none":
+    if cfg.image_off:
+        print("Foto por IA: DESLIGADA porque o .env tem IMAGE_PROVIDER=off. Apague essa linha para ligar.")
+    elif cfg.image_provider == "none":
         print("Foto por IA: DESLIGADA (não achei OPENAI_API_KEY no .env; confira com: python scripts/check_env.py)")
     else:
         print(f"Foto por IA: ligada ({cfg.image_provider}, modelo {cfg.openai_image_model})")
