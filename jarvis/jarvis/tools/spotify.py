@@ -30,6 +30,13 @@ class Spotify:
     def pause(self) -> None:
         self.sp.pause_playback()
 
+    def get_volume(self) -> int:
+        cur = self.sp.current_playback() or {}
+        return (cur.get("device") or {}).get("volume_percent") or 80
+
+    def set_volume(self, percent: int) -> None:
+        self.sp.volume(max(0, min(100, percent)))
+
 
 def make_tools() -> list[Tool]:
     sp = Spotify()

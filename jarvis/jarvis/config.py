@@ -31,6 +31,9 @@ class Config:
     intro_audio_file: str
     intro_spotify_uri: str
     intro_seconds: float
+    intro_lead: float
+    intro_tail: float
+    intro_duck: float
 
     @property
     def spotify_enabled(self) -> bool:
@@ -53,5 +56,8 @@ class Config:
             wakeword_threshold=float(env("WAKEWORD_THRESHOLD", "0.5")),
             intro_audio_file=env("INTRO_AUDIO_FILE", "assets/intro.mp3"),
             intro_spotify_uri=env("INTRO_SPOTIFY_URI", ""),
-            intro_seconds=float(env("INTRO_SECONDS", "15")),
+            intro_seconds=float(env("INTRO_SECONDS", "40")),
+            intro_lead=float(env("INTRO_LEAD_SECONDS", "7")),
+            intro_tail=float(env("INTRO_TAIL_SECONDS", "5")),
+            intro_duck=float(env("INTRO_DUCK_LEVEL", "0.25")),
         )

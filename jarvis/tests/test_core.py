@@ -149,3 +149,38 @@ def test_weather_city_not_found():
     from jarvis.tools.weather import weather_text
 
     assert "Não encontrei" in weather_text("xyz", fetch=lambda u, p: {})
+
+
+def test_music_player_ducks_and_fades():
+    from jarvis.intro import MusicPlayer
+
+    rate = 1000
+    p = MusicPlayer(np.ones((10 * rate, 2), dtype=np.float32), rate, volume=0.9)
+    p.fill(rate)
+    assert abs(p.gain - 0.9) < 1e-6
+    p.set_volume(0.25, seconds=1.0)
+    out = p.fill(rate)  # 1 s de rampa
+    assert abs(p.gain - 0.25) < 1e-3
+    assert out[0, 0] > out[-1, 0] and abs(out[-1, 0] - 0.25) < 1e-2
+    p.set_volume(0.0, seconds=1.0)
+    p.fill(rate)
+    assert p.gain < 1e-3
+
+
+def test_intro_sequence_music_then_duck_then_speech_then_fade(tmp_path):
+    from jarvis.intro import DailyIntro
+
+    events = []
+
+    class FakePlayer:
+        def set_volume(self, level, seconds=1.0):
+            events.append(("duck", level))
+
+        def fade_out(self, seconds=2.5):
+            events.append("fade")
+
+    intro = DailyIntro(tmp_path / "s.json", lead=7, tail=5, duck=0.3,
+                       sleep=lambda s: events.append(("sleep", s)))
+    intro._start_music = lambda: (events.append("start"), FakePlayer())[1]
+    intro.run(lambda t: events.append("speak"))
+    assert events == ["start", ("sleep", 7), ("duck", 0.3), "speak", ("sleep", 5), "fade"]

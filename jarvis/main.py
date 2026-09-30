@@ -35,7 +35,8 @@ def main() -> None:
 
         spotify = Spotify()
     intro = DailyIntro(STATE_FILE, cfg.intro_audio_file, cfg.intro_spotify_uri,
-                       cfg.intro_seconds, cfg.user_name, spotify)
+                       cfg.intro_seconds, cfg.user_name, spotify,
+                       cfg.intro_lead, cfg.intro_tail, cfg.intro_duck)
 
     print("Carregando modelos...")
     stt = Transcriber(cfg.whisper_model, cfg.whisper_language, cfg.whisper_backend)
