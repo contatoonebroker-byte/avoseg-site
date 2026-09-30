@@ -188,6 +188,10 @@ let cur = { ...STATES.idle }, target = STATES.idle, stateName = "idle", pulse = 
 const lerp = (a, b, t) => a + (b - a) * t;
 function setState(name) { if (!STATES[name]) name = "idle"; stateName = name; target = STATES[name]; $("#status").textContent = target.label; }
 
+/* ---------- música: espectro e batida chegam do Jarvis (~30x/s) ---------- */
+const music = { bands: new Array(32).fill(0), sm: new Array(32).fill(0), bass: 0, bassSm: 0, kick: 0, at: -1e9 };
+function onLevel(e) { music.bands = e.bands; music.bass = e.bass; if (e.beat) music.kick = 1; music.at = performance.now(); }
+
 let rot = 0, t0 = performance.now();
 const bars = Array.from({ length: 120 }, () => Math.random());
 const col = (a = 1, l = 0) => `hsla(${cur.hue}, 100%, ${cur.light + l}%, ${a})`;
@@ -195,12 +199,18 @@ const col = (a = 1, l = 0) => `hsla(${cur.hue}, 100%, ${cur.light + l}%, ${a})`;
 function frame(now) {
   const dt = Math.min(.05, (now - t0) / 1000); t0 = now;
   for (const k of ["hue", "light", "speed", "energy"]) cur[k] = lerp(cur[k], target[k], .06);
-  rot += dt * cur.speed; pulse += dt * (stateName === "speaking" ? 7 : 2.2);
+  const mOn = now - music.at < 500;                       // música tocando (recebendo níveis)
+  for (let j = 0; j < 32; j++) music.sm[j] = lerp(music.sm[j], mOn ? music.bands[j] : 0, .45);
+  music.bassSm = lerp(music.bassSm, mOn ? music.bass : 0, .35);
+  music.kick = Math.max(0, music.kick - dt * 3.2);
+  rot += dt * (cur.speed + music.bassSm * 1.1); pulse += dt * (stateName === "speaking" ? 7 : 2.2);
   ctx.clearRect(0, 0, W, H);
   const cx = W / 2, cy = H * 0.46, R = Math.min(W * 0.15, H * 0.215);
   ctx.save(); ctx.translate(cx, cy);
+  const pump = 1 + music.kick * .04 + music.bassSm * .012;    // o reator "respira" com a batida
+  ctx.scale(pump, pump);
   const g = ctx.createRadialGradient(0, 0, R * .1, 0, 0, R * 2.3);
-  g.addColorStop(0, col(.20 + cur.energy * .18)); g.addColorStop(1, col(0));
+  g.addColorStop(0, col(.20 + cur.energy * .18 + music.bassSm * .22 + music.kick * .15)); g.addColorStop(1, col(0));
   ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, R * 2.3, 0, 7); ctx.fill();
 
   const N = bars.length;
@@ -208,7 +218,8 @@ function frame(now) {
     bars[i] = lerp(bars[i], Math.random(), .18);
     const a = (i / N) * Math.PI * 2 + rot * .15;
     const wave = stateName === "speaking" ? (Math.sin(pulse + i * .5) * .5 + .5) : 1;
-    const len = R * (.05 + cur.energy * .34 * bars[i] * wave);
+    const k = i < N / 2 ? i : N - 1 - i, mv = music.sm[Math.min(31, Math.floor(k / (N / 2) * 32))];
+    const len = R * (.05 + Math.max(cur.energy * .34 * bars[i] * wave, mv * .46));   // espectro real quando há música
     ctx.strokeStyle = col(.75); ctx.lineWidth = 2 * DPR; ctx.beginPath();
     ctx.moveTo(Math.cos(a) * R * 1.32, Math.sin(a) * R * 1.32);
     ctx.lineTo(Math.cos(a) * (R * 1.32 + len), Math.sin(a) * (R * 1.32 + len)); ctx.stroke();
@@ -227,7 +238,7 @@ function frame(now) {
   });
   ctx.lineWidth = DPR; ctx.strokeStyle = col(.35);
   [1.34, .6, .48].forEach((r) => { ctx.beginPath(); ctx.arc(0, 0, R * r, 0, 7); ctx.stroke(); });
-  const core = R * (.34 + Math.sin(pulse) * .025 * (1 + cur.energy * 2));
+  const core = R * (.34 + Math.sin(pulse) * .025 * (1 + cur.energy * 2) + music.kick * .09);
   const cg = ctx.createRadialGradient(0, 0, 0, 0, 0, core * 1.6);
   cg.addColorStop(0, `hsla(${cur.hue}, 100%, 92%, .95)`); cg.addColorStop(.35, col(.85, 10)); cg.addColorStop(1, col(0));
   ctx.fillStyle = cg; ctx.beginPath(); ctx.arc(0, 0, core * 1.6, 0, 7); ctx.fill();
@@ -353,9 +364,12 @@ function onEvent(e) {
 
 tick(); setInterval(tick, 1000);
 const es = new EventSource("/events");
-es.onmessage = (m) => { const e = JSON.parse(m.data); e.type === "widget" ? onWidget(e.name, e.data) : onEvent(e); };
+es.onmessage = (m) => {
+  const e = JSON.parse(m.data);
+  if (e.type === "level") onLevel(e); else if (e.type === "widget") onWidget(e.name, e.data); else onEvent(e);
+};
 es.onerror = () => { $("#status").textContent = "SEM CONEXÃO COM O NÚCLEO"; };
-window.__hud = { onEvent, onWidget };
+window.__hud = { onEvent, onWidget, onLevel };
 </script>
 </body>
 </html>

@@ -167,24 +167,32 @@ def test_music_player_ducks_and_fades():
     assert p.gain < 1e-3
 
 
-def test_intro_sequence_music_then_duck_then_speech_then_fade(tmp_path):
+def test_intro_sequence_music_ducks_then_stays_as_background(tmp_path):
     from jarvis.intro import DailyIntro
 
     events = []
 
     class FakePlayer:
         def set_volume(self, level, seconds=1.0):
-            events.append(("duck", level))
+            events.append(("vol", level))
 
         def fade_out(self, seconds=2.5, block=True):
             events.append(("fade", block))
 
-    intro = DailyIntro(tmp_path / "s.json", lead=7, tail=5, duck=0.3,
+    intro = DailyIntro(tmp_path / "s.json", lead=7, tail=1, duck=0.3, bed=0.1, after=999,
                        sleep=lambda s: events.append(("sleep", s)))
     intro._start_music = lambda: (events.append("start"), FakePlayer())[1]
     intro.run(lambda t: events.append("speak"), on_ending=lambda: events.append("chime"))
-    # o bipe vem logo depois de o fade-out começar (sem esperá-lo terminar)
-    assert events == ["start", ("sleep", 7), ("duck", 0.3), "speak", ("sleep", 5), ("fade", False), "chime"]
+    # voz entra com a música abaixada; bipe soa e a música fica de fundo (não some ainda)
+    assert events == ["start", ("sleep", 7), ("vol", 0.3), "speak", ("sleep", 1), ("vol", 0.1), "chime"]
+    assert intro.bed_active
+
+    events.clear()
+    intro.speech_started()   # você fala: música quase some
+    intro.speech_ended()     # terminou: volta ao fundo
+    intro.end_music()        # depois de `after` segundos: fade-out
+    assert events == [("vol", 0.03), ("vol", 0.1), ("fade", False)]
+    assert not intro.bed_active
 
 
 def test_hud_serves_page_and_streams_events():
@@ -262,3 +270,125 @@ def test_system_snapshot_shape():
     assert 0 <= data["cpu"] <= 100 and 0 <= data["mem"] <= 100 and "down" in data
     data2, _ = system_snapshot(net)
     assert data2["down"] >= 0
+
+
+def test_endpointer_with_known_noise_detects_speech_from_first_block():
+    rng = np.random.default_rng(1)
+    loud = lambda: (rng.normal(0, 3000, BLOCK)).astype(np.int16)
+    quiet = lambda: (rng.normal(0, 20, BLOCK)).astype(np.int16)
+    ep = Endpointer(silence_s=0.3, noise=60)
+    ep.feed(loud())                       # falou logo após o bipe
+    assert ep.speaking                    # sem calibrar em cima da própria voz
+    assert any(ep.feed(quiet()) for _ in range(10))
+
+
+def test_noise_tracker_ignores_speech_peaks():
+    from jarvis.audio import NoiseTracker
+
+    rng = np.random.default_rng(2)
+    t = NoiseTracker(initial=100)
+    for _ in range(200):
+        t.update((rng.normal(0, 40, BLOCK)).astype(np.int16))
+    settled = t.value
+    for _ in range(20):
+        t.update((rng.normal(0, 4000, BLOCK)).astype(np.int16))
+    assert settled < 80 and abs(t.value - settled) < 1
+
+
+def test_beat_analyzer_finds_bass_and_beats():
+    from jarvis.beat import BeatAnalyzer
+
+    rate, n = 44100, 1024
+    t = np.arange(n) / rate
+    bass = np.sin(2 * np.pi * 60 * t).astype(np.float32)
+    high = np.sin(2 * np.pi * 5000 * t).astype(np.float32)
+    an = BeatAnalyzer(rate)
+    out = None
+    for i in range(8):                     # silêncio de graves: só agudos
+        out = an.process(high * 0.5, now=i * 0.05)
+    assert out["bands"][-8:] != [0] * 8 and out["bass"] < 0.2 and not out["beat"]
+    hit = an.process(bass, now=1.0)        # entra um bumbo
+    assert hit["beat"] and hit["bass"] > 0.8 and hit["bands"][0] + hit["bands"][1] > 0.5
+    assert len(hit["bands"]) == 32
+
+
+def test_music_player_reports_levels_from_original_audio():
+    from jarvis.intro import MusicPlayer
+
+    rate = 44100
+    tone = np.tile(np.sin(2 * np.pi * 80 * np.arange(rate) / rate).astype(np.float32)[:, None], (1, 2))
+    levels = []
+    p = MusicPlayer(tone, rate, volume=0.02, on_level=levels.append)  # volume quase zero
+    for _ in range(4):
+        p.fill(1024)
+        p._last_level = 0.0
+    assert levels and levels[-1]["bass"] > 0.5      # o holograma reage mesmo com a música baixa
+
+
+def test_sentence_splitter_streams_complete_sentences():
+    from jarvis.brain import SentenceSplitter
+
+    out = []
+    sp = SentenceSplitter(out.append, min_len=10)
+    for chunk in ["Boa tarde, senhor. Hoje faz ", "27 graus em Sorocaba. Sim", ". Levo um guarda-chuva?"]:
+        sp.feed(chunk)
+    sp.flush()
+    assert out == ["Boa tarde, senhor.", "Hoje faz 27 graus em Sorocaba.", "Sim. Levo um guarda-chuva?"]
+
+
+class FakeStreamClient:
+    def __init__(self):
+        self.messages = self
+
+    def stream(self, **kw):
+        outer = self
+
+        class Ctx:
+            text_stream = iter(["Claro, senhor. ", "São três da tarde."])
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def get_final_message(self):
+                return NS(stop_reason="end_turn",
+                          content=[NS(type="text", text="Claro, senhor. São três da tarde.")])
+        return Ctx()
+
+
+def test_brain_streams_sentences_as_they_arrive():
+    said = []
+    brain = Brain(FakeStreamClient(), "m", [])
+    reply = brain.ask("que horas são?", on_sentence=said.append)
+    assert said == ["Claro, senhor. São três da tarde."] or said == ["Claro, senhor.", "São três da tarde."]
+    assert reply == "Claro, senhor. São três da tarde."
+
+
+def test_speech_queue_speaks_in_order():
+    from jarvis.tts import SpeechQueue
+
+    spoken = []
+    q = SpeechQueue(spoken.append)
+    for t in ["um", "dois", "três"]:
+        q.put(t)
+    q.wait()
+    assert spoken == ["um", "dois", "três"]
+
+
+def test_hud_level_events_are_not_replayed():
+    import http.client
+
+    from jarvis.hud import Hud
+
+    hud = Hud(port=0)
+    hud.start()
+    hud.level({"bands": [0.1], "bass": 0.5, "beat": True})   # sem ninguém conectado: descartado
+    ev = http.client.HTTPConnection("127.0.0.1", hud.port, timeout=3)
+    ev.request("GET", "/events")
+    resp = ev.getresponse()
+    resp.fp.readline()                                        # estado inicial
+    resp.fp.readline()
+    hud.level({"bands": [0.2], "bass": 0.9, "beat": False})
+    assert b'"type": "level"' in resp.fp.readline()

@@ -34,7 +34,7 @@ class Hud:
             self._last = event
             subs = list(self._subs)
         for q in subs:
-            q.put(event)
+            self._offer(q, event)
 
     def publish(self, name: str, data) -> None:
         """Atualiza um widget da tela (clima, monitor, spotify...)."""
@@ -43,10 +43,25 @@ class Hud:
             self._widgets[name] = event
             subs = list(self._subs)
         for q in subs:
-            q.put(event)
+            self._offer(q, event)
+
+    @staticmethod
+    def _offer(q: queue.Queue, event: dict) -> None:
+        try:
+            q.put_nowait(event)
+        except queue.Full:
+            pass
+
+    def level(self, payload: dict) -> None:
+        """Espectro/batida da música (efêmero: não é guardado nem reenviado a quem conecta depois)."""
+        event = {"type": "level", **payload}
+        with self._lock:
+            subs = list(self._subs)
+        for q in subs:
+            self._offer(q, event)  # cliente lento (ex.: tablet no Wi-Fi): descarta
 
     def _subscribe(self) -> queue.Queue:
-        q: queue.Queue = queue.Queue()
+        q: queue.Queue = queue.Queue(maxsize=500)
         with self._lock:
             self._subs.append(q)
         return q

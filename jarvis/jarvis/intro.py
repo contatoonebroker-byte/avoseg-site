@@ -13,8 +13,13 @@ import numpy as np
 class MusicPlayer:
     """Toca um arquivo em segundo plano com volume ajustável (rampa suave)."""
 
-    def __init__(self, data: np.ndarray, rate: int, volume: float = 0.9) -> None:
+    def __init__(self, data: np.ndarray, rate: int, volume: float = 0.9, on_level=None) -> None:
+        from .beat import BeatAnalyzer
+
         self.data, self.rate = data, rate
+        self.on_level = on_level  # recebe {"bands", "bass", "beat"} ~30x/s
+        self._beat = BeatAnalyzer(rate)
+        self._last_level = 0.0
         self.pos = 0
         self.gain = self.target = volume
         self.slew = 1.0  # variação de ganho por segundo
@@ -32,6 +37,13 @@ class MusicPlayer:
         self.pos += n
         if n == 0:
             return chunk
+        if self.on_level is not None:  # analisa a música original: o holograma pulsa mesmo com volume baixo
+            now = time.monotonic()
+            if now - self._last_level >= 0.033:
+                self._last_level = now
+                out = self._beat.process(chunk, now)
+                if out:
+                    self.on_level(out)
         step = self.slew * n / self.rate
         g0 = self.gain
         g1 = min(self.target, g0 + step) if self.target > g0 else max(self.target, g0 - step)
@@ -97,8 +109,9 @@ class SpotifyMusic:
 class DailyIntro:
     def __init__(self, state_file: Path, audio_file: str = "", spotify_uri: str = "",
                  seconds: float = 40.0, user_name: str = "senhor", spotify=None,
-                 lead: float = 7.0, tail: float = 5.0, duck: float = 0.25,
-                 sleep=time.sleep) -> None:
+                 lead: float = 7.0, tail: float = 1.0, duck: float = 0.25,
+                 bed: float = 0.10, after: float = 10.0, speech_level: float = 0.03,
+                 on_level=None, sleep=time.sleep) -> None:
         self.state_file = Path(state_file)
         self.audio_file = audio_file
         self.spotify_uri = spotify_uri
@@ -106,7 +119,11 @@ class DailyIntro:
         self.user_name = user_name
         self.spotify = spotify
         self.lead, self.tail, self.duck = lead, tail, duck
+        self.bed, self.after, self.speech_level = bed, after, speech_level
+        self.on_level = on_level
         self._sleep = sleep
+        self._player = None
+        self._timer: threading.Timer | None = None
 
     # --- controle de "já tocou hoje?" ---
     def _last_date(self) -> str | None:
@@ -139,18 +156,22 @@ class DailyIntro:
         import soundfile as sf
 
         data, rate = sf.read(str(path), dtype="float32", always_2d=True)
-        player = MusicPlayer(data[: int(self.seconds * rate)], rate)
+        player = MusicPlayer(data[: int(self.seconds * rate)], rate, on_level=self.on_level)
         player.start()
         return player
 
-    def run(self, speak, on_ending=None) -> None:
-        """Música entra, abaixa para a saudação, continua ao fundo e some suavemente.
+    @property
+    def bed_active(self) -> bool:
+        return self._player is not None
 
-        `on_ending` é chamado assim que o fade-out começa (ex.: bipe de "estou ouvindo"),
-        sem esperar a música acabar.
+    def run(self, speak, on_ending=None) -> None:
+        """Música entra, abaixa para a saudação e passa a tocar baixinho ao fundo.
+
+        `on_ending` (ex.: bipe de "estou ouvindo") é chamado logo depois da saudação; a música
+        segue em volume de fundo por `after` segundos e só então some com fade-out.
         """
         self.mark_played()
-        player = self._start_music()
+        player = self._player = self._start_music()
         try:
             if player:
                 self._sleep(self.lead)
@@ -158,8 +179,32 @@ class DailyIntro:
             speak(self.greeting())
             if player:
                 self._sleep(self.tail)
-        finally:
-            if player:
-                player.fade_out(2.5, block=False)
+        except BaseException:
+            self.end_music()
+            raise
+        if player:
+            player.set_volume(self.bed, 1.0)
+            self._timer = threading.Timer(self.after, self.end_music)
+            self._timer.daemon = True
+            self._timer.start()
         if on_ending:
             on_ending()
+
+    def speech_started(self) -> None:
+        """Você começou a falar: a música quase some para não atrapalhar a escuta."""
+        if self._player:
+            self._player.set_volume(self.speech_level, 0.25)
+
+    def speech_ended(self) -> None:
+        """Você terminou de falar: a música volta ao volume de fundo."""
+        if self._player:
+            self._player.set_volume(self.bed, 1.0)
+
+    def end_music(self) -> None:
+        """Encerra a música com fade-out (sem bloquear)."""
+        player, self._player = self._player, None
+        if self._timer:
+            self._timer.cancel()
+            self._timer = None
+        if player:
+            player.fade_out(2.5, block=False)

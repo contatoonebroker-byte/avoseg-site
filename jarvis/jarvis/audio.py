@@ -49,19 +49,40 @@ def rms(block: np.ndarray) -> float:
     return float(np.sqrt(np.mean(block.astype(np.float32) ** 2)))
 
 
+class NoiseTracker:
+    """Estima o ruído de fundo enquanto o Jarvis espera a hotword (ninguém falando).
+
+    Assim o detector de fala não precisa se calibrar depois do bipe, quando você
+    já pode estar falando.
+    """
+
+    def __init__(self, initial: float = 100.0) -> None:
+        self.value = initial
+
+    def update(self, block: np.ndarray) -> None:
+        level = rms(block)
+        if level < self.value * 2.5 + 50:  # ignora picos (fala, batidas)
+            self.value = 0.98 * self.value + 0.02 * level
+
+
 class Endpointer:
     """Decide quando o usuário começou e terminou de falar (por energia).
 
-    Calibra o ruído de fundo nos primeiros blocos e usa um limiar acima dele.
+    Com `noise` conhecido o limiar já vale desde o primeiro bloco. Sem ele,
+    calibra o ruído de fundo nos primeiros blocos.
     """
 
-    def __init__(self, silence_s: float = 0.9, min_threshold: float = 250.0,
-                 calibration_blocks: int = 4) -> None:
-        self.silence_blocks = int(silence_s * SAMPLE_RATE / BLOCK)
+    def __init__(self, silence_s: float = 0.6, min_threshold: float = 300.0,
+                 calibration_blocks: int = 4, noise: float | None = None) -> None:
+        self.silence_blocks = max(1, int(silence_s * SAMPLE_RATE / BLOCK))
         self.min_threshold = min_threshold
-        self._calib_left = calibration_blocks
         self._noise: list[float] = []
-        self.threshold = min_threshold
+        if noise is None:
+            self._calib_left = calibration_blocks
+            self.threshold = min_threshold
+        else:
+            self._calib_left = 0
+            self.threshold = max(min_threshold, noise * 3.5)
         self.speaking = False
         self._quiet = 0
 
@@ -84,12 +105,18 @@ class Endpointer:
 
 
 def record_utterance(mic: MicStream, start_timeout: float | None = None,
-                     max_seconds: float = 20.0) -> np.ndarray | None:
-    """Grava até o usuário parar de falar. None se ninguém falar dentro do prazo."""
-    ep = Endpointer()
+                     max_seconds: float = 20.0, noise: float | None = None,
+                     silence_s: float = 0.6, min_threshold: float = 300.0,
+                     on_speech=None) -> np.ndarray | None:
+    """Grava até o usuário parar de falar. None se ninguém falar dentro do prazo.
+
+    `on_speech` é chamado uma vez, assim que a fala começa (ex.: abaixar a música).
+    """
+    ep = Endpointer(silence_s, min_threshold, noise=noise)
     preroll: list[np.ndarray] = []
     frames: list[np.ndarray] = []
     t0 = time.monotonic()
+    started = False
     while time.monotonic() - t0 < max_seconds:
         block = mic.read()
         if block is None:
@@ -97,12 +124,15 @@ def record_utterance(mic: MicStream, start_timeout: float | None = None,
         done = ep.feed(block)
         if ep.speaking:
             frames.append(block)
+            if not started:
+                started = True
+                frames = preroll + frames
+                if on_speech:
+                    on_speech()
         else:
             preroll = (preroll + [block])[-4:]
             if start_timeout is not None and time.monotonic() - t0 > start_timeout:
                 return None
-        if ep.speaking and len(frames) == 1:
-            frames = preroll + frames
         if done:
             break
     return np.concatenate(frames) if frames else None

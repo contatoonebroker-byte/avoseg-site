@@ -14,13 +14,15 @@ class WakeWord:
         self.threshold = threshold
         self._model = Model(wakeword_models=[model_name], inference_framework="onnx")
 
-    def wait(self, mic: MicStream) -> None:
+    def wait(self, mic: MicStream, on_block=None) -> None:
         """Bloqueia até ouvir a hotword."""
         self._model.reset()
         while True:
             block = mic.read()
             if block is None:
                 continue
+            if on_block:
+                on_block(block)
             scores = self._model.predict(block)
             if max(scores.values(), default=0.0) >= self.threshold:
                 return

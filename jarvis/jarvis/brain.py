@@ -1,7 +1,34 @@
 """Interpretação de comandos: Claude com tool use."""
 from __future__ import annotations
 
+import re
+
 from .tools import Tool
+
+_SENTENCE_END = re.compile(r"(?<=[.!?…])\s+")
+
+
+class SentenceSplitter:
+    """Recebe texto em pedaços e entrega frases completas (frases curtas grudam na seguinte)."""
+
+    def __init__(self, emit, min_len: int = 24) -> None:
+        self.emit, self.min_len, self.buf = emit, min_len, ""
+
+    def feed(self, chunk: str) -> None:
+        self.buf += chunk
+        parts = _SENTENCE_END.split(self.buf)
+        pending = ""
+        for sentence in parts[:-1]:
+            pending = f"{pending} {sentence}".strip()
+            if len(pending) >= self.min_len:
+                self.emit(pending)
+                pending = ""
+        self.buf = f"{pending} {parts[-1]}" if pending else parts[-1]
+
+    def flush(self) -> None:
+        if self.buf.strip():
+            self.emit(self.buf.strip())
+        self.buf = ""
 
 SYSTEM_TEMPLATE = """Você é JARVIS, o assistente pessoal de voz do {user}: elegante, \
 eficiente, com um toque discreto de humor britânico e total lealdade.
@@ -48,7 +75,18 @@ class Brain:
         except Exception as e:
             return f"Erro ao executar {name}: {e}", True
 
-    def ask(self, text: str) -> str:
+    def _create(self, kwargs: dict, on_text=None):
+        """Chamada à API; com `on_text`, usa streaming e entrega o texto conforme chega."""
+        if on_text is None:
+            return self.client.messages.create(**kwargs)
+        with self.client.messages.stream(**kwargs) as stream:
+            for chunk in stream.text_stream:
+                on_text(chunk)
+            return stream.get_final_message()
+
+    def ask(self, text: str, on_sentence=None) -> str:
+        """Responde ao comando. Com `on_sentence`, cada frase é entregue assim que fica pronta
+        (para começar a falar antes de a resposta inteira terminar)."""
         self.messages.append({"role": "user", "content": text})
         self._trim()
         for _ in range(MAX_TOOL_ROUNDS):
@@ -58,7 +96,10 @@ class Brain:
             )
             if self.tool_schemas:
                 kwargs["tools"] = self.tool_schemas
-            resp = self.client.messages.create(**kwargs)
+            splitter = SentenceSplitter(on_sentence) if on_sentence else None
+            resp = self._create(kwargs, splitter.feed if splitter else None)
+            if splitter:
+                splitter.flush()
             self.messages.append({"role": "assistant", "content": resp.content})
 
             if resp.stop_reason == "refusal":

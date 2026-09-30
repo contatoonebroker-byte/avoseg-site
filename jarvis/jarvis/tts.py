@@ -5,8 +5,10 @@ como reserva, para o assistente nunca ficar mudo nem travar.
 """
 from __future__ import annotations
 
+import queue
 import subprocess
 import sys
+import threading
 
 import numpy as np
 
@@ -62,3 +64,28 @@ class Speaker:
                 print(f"[tts] ElevenLabs falhou ({self._reason(e)}). Usando a voz do sistema.")
                 self._warned = True
             self._fallback(text)
+
+
+class SpeechQueue:
+    """Fala as frases em ordem numa thread própria, enquanto o Claude ainda está respondendo."""
+
+    def __init__(self, say) -> None:
+        self._q: queue.Queue[str] = queue.Queue()
+        self._say = say
+        threading.Thread(target=self._run, daemon=True).start()
+
+    def _run(self) -> None:
+        while True:
+            text = self._q.get()
+            try:
+                self._say(text)
+            except Exception as e:
+                print(f"[fala] {e}")
+            finally:
+                self._q.task_done()
+
+    def put(self, text: str) -> None:
+        self._q.put(text)
+
+    def wait(self) -> None:
+        self._q.join()

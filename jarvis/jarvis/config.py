@@ -35,6 +35,9 @@ class Config:
     intro_lead: float
     intro_tail: float
     intro_duck: float
+    intro_bed: float
+    intro_after: float
+    silence_s: float
     hud_enabled: bool
     hud_host: str
     hud_port: int
@@ -66,6 +69,9 @@ class Config:
             intro_lead=float(env("INTRO_LEAD_SECONDS", "7")),
             intro_tail=float(env("INTRO_TAIL_SECONDS", "1")),
             intro_duck=float(env("INTRO_DUCK_LEVEL", "0.25")),
+            intro_bed=float(env("INTRO_BED_LEVEL", "0.10")),
+            intro_after=float(env("INTRO_AFTER_SECONDS", "10")),
+            silence_s=float(env("SILENCE_SECONDS", "0.6")),
             hud_enabled=env("HUD", "1") == "1",
             hud_host=env("HUD_HOST", "127.0.0.1"),
             hud_port=int(env("HUD_PORT", "8765")),

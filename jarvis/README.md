@@ -48,11 +48,20 @@ Escolha em elevenlabs.io/voice-library uma voz masculina britânica, calma e for
 (filtre por "British", "butler"/"narrator"), copie o *Voice ID* para o `.env`.
 Se quiser clonar uma voz, use apenas uma que você tenha autorização para usar.
 
+### Velocidade de resposta
+- O Jarvis fala **frase a frase** enquanto o Claude ainda está escrevendo, então a voz começa antes de a resposta terminar.
+- `SILENCE_SECONDS` (padrão 0.6) é quanto silêncio ele espera para saber que você terminou de falar. Menor = mais rápido, mas pode cortar pausas.
+- Para respostas ainda mais rápidas, use um modelo menor em `JARVIS_MODEL` (por exemplo `claude-haiku-4-5`).
+
 ### Introdução do primeiro comando do dia
 No primeiro comando de cada dia o Jarvis toca uma música por `INTRO_SECONDS` segundos (com fade-out) e
 diz a saudação. Duas opções:
 - **Arquivo local:** coloque seu áudio em `assets/intro.mp3` (ou aponte `INTRO_AUDIO_FILE`).
 - **Spotify:** informe `INTRO_SPOTIFY_URI` (ex.: `spotify:track:...`).
+
+Depois do bipe a música continua **baixinho ao fundo** (`INTRO_BED_LEVEL`, por `INTRO_AFTER_SECONDS` segundos)
+e quase some enquanto você fala. O holograma pulsa com a batida da música (arquivo local; o Spotify não
+permite analisar o áudio).
 
 A data da última introdução fica em `~/.jarvis_state.json`; apague o arquivo para ouvir de novo.
 
