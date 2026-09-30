@@ -184,3 +184,27 @@ def test_intro_sequence_music_then_duck_then_speech_then_fade(tmp_path):
     intro._start_music = lambda: (events.append("start"), FakePlayer())[1]
     intro.run(lambda t: events.append("speak"))
     assert events == ["start", ("sleep", 7), ("duck", 0.3), "speak", ("sleep", 5), "fade"]
+
+
+def test_hud_serves_page_and_streams_events():
+    import http.client
+    import json
+
+    from jarvis.hud import Hud
+
+    hud = Hud(port=0)
+    hud.start()
+    conn = http.client.HTTPConnection("127.0.0.1", hud.port, timeout=5)
+    conn.request("GET", "/")
+    page = conn.getresponse()
+    assert page.status == 200 and b"J.A.R.V.I.S." in page.read()
+
+    ev = http.client.HTTPConnection("127.0.0.1", hud.port, timeout=5)
+    ev.request("GET", "/events")
+    resp = ev.getresponse()
+    first = json.loads(resp.fp.readline().decode().removeprefix("data: "))
+    assert first["state"] == "idle"          # estado inicial ao conectar
+    resp.fp.readline()
+    hud.emit("speaking", text="olá")
+    second = json.loads(resp.fp.readline().decode().removeprefix("data: "))
+    assert second["state"] == "speaking" and second["text"] == "olá"

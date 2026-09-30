@@ -56,6 +56,17 @@ diz a saudação. Duas opções:
 
 A data da última introdução fica em `~/.jarvis_state.json`; apague o arquivo para ouvir de novo.
 
+## Tela HUD
+
+Ao iniciar, o Jarvis abre uma tela futurista no navegador (`http://127.0.0.1:8765`) que reage em tempo real:
+boot durante a música de abertura, e cores/animações para ouvindo, processando e respondendo.
+Aperte `Ctrl+Cmd+F` no navegador para tela cheia.
+
+**No tablet (Lenovo Tab):** no `.env` coloque `HUD_HOST=0.0.0.0`, rode o Jarvis e abra no navegador do tablet
+o endereço que ele imprime ("No tablet, abra: ..."), com os dois aparelhos no mesmo Wi-Fi.
+Nesse modo qualquer aparelho da rede consegue ver a tela; use só em rede de confiança.
+Para desligar: `HUD=0`. Para não abrir o navegador sozinho: `HUD_AUTO_OPEN=0`.
+
 ## Ferramentas atuais
 
 Data e hora, temporizador, Spotify (tocar, pausar, próxima, volume, o que está tocando).

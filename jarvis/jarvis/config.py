@@ -34,6 +34,10 @@ class Config:
     intro_lead: float
     intro_tail: float
     intro_duck: float
+    hud_enabled: bool
+    hud_host: str
+    hud_port: int
+    hud_auto_open: bool
 
     @property
     def spotify_enabled(self) -> bool:
@@ -60,4 +64,8 @@ class Config:
             intro_lead=float(env("INTRO_LEAD_SECONDS", "7")),
             intro_tail=float(env("INTRO_TAIL_SECONDS", "5")),
             intro_duck=float(env("INTRO_DUCK_LEVEL", "0.25")),
+            hud_enabled=env("HUD", "1") == "1",
+            hud_host=env("HUD_HOST", "127.0.0.1"),
+            hud_port=int(env("HUD_PORT", "8765")),
+            hud_auto_open=env("HUD_AUTO_OPEN", "1") == "1",
         )

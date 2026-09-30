@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>J.A.R.V.I.S.</title>
+<style>
+  :root {
+    --bg: #02070d;
+    --line: rgba(80, 200, 255, .28);
+    --dim: rgba(150, 215, 245, .55);
+    --text: #cdeeff;
+    --accent: #38d3ff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: var(--bg); color: var(--text); overflow: hidden;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+  body::after { /* linhas de varredura sutis */
+    content: ""; position: fixed; inset: 0; pointer-events: none;
+    background: repeating-linear-gradient(0deg, rgba(255,255,255,.025) 0 1px, transparent 1px 3px);
+  }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; }
+  .layer { position: fixed; inset: 0; padding: clamp(14px, 2.4vw, 32px); pointer-events: none;
+    display: grid; grid-template-columns: minmax(180px, 24%) 1fr minmax(200px, 26%);
+    grid-template-rows: auto 1fr auto; gap: 16px; }
+  .panel { border: 1px solid var(--line); background: rgba(4, 18, 30, .55);
+    padding: 12px 14px; position: relative; backdrop-filter: blur(2px); }
+  .panel::before, .panel::after { content: ""; position: absolute; width: 10px; height: 10px;
+    border: 2px solid var(--accent); }
+  .panel::before { top: -1px; left: -1px; border-right: 0; border-bottom: 0; }
+  .panel::after { bottom: -1px; right: -1px; border-left: 0; border-top: 0; }
+  h2 { font-size: 11px; letter-spacing: .28em; font-weight: 500; color: var(--dim); margin-bottom: 10px; }
+  .title { grid-column: 1; }
+  .title b { display: block; font-size: clamp(20px, 2.4vw, 30px); letter-spacing: .32em; color: var(--accent);
+    text-shadow: 0 0 14px var(--accent); }
+  .title span { font-size: 11px; letter-spacing: .2em; color: var(--dim); }
+  .clock { grid-column: 3; text-align: right; }
+  .clock b { display: block; font-size: clamp(22px, 2.6vw, 34px); font-weight: 500; letter-spacing: .12em; }
+  .clock span { font-size: 11px; letter-spacing: .18em; color: var(--dim); text-transform: uppercase; }
+  .left { grid-column: 1; grid-row: 2; align-self: start; }
+  .right { grid-column: 3; grid-row: 2; align-self: start; max-height: 60vh; overflow: hidden;
+    display: flex; flex-direction: column; }
+  .sys div { display: flex; justify-content: space-between; font-size: 12px; letter-spacing: .12em;
+    padding: 5px 0; border-bottom: 1px dashed rgba(80,200,255,.12); }
+  .sys em { font-style: normal; color: var(--dim); transition: color .4s; }
+  .sys em.on { color: #5cffb5; text-shadow: 0 0 8px #5cffb5; }
+  #log { display: flex; flex-direction: column; justify-content: flex-end; gap: 8px; font-size: 12.5px;
+    line-height: 1.45; overflow: hidden; }
+  #log p { animation: in .4s ease; }
+  #log p.me { color: var(--dim); }
+  #log p.me::before { content: "› "; color: var(--accent); }
+  #log p.ai::before { content: "J.A.R.V.I.S. "; color: var(--accent); letter-spacing: .14em; font-size: 10px; }
+  @keyframes in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .bottom { grid-column: 1 / -1; grid-row: 3; text-align: center; min-height: 96px;
+    display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 10px; }
+  #status { font-size: 12px; letter-spacing: .5em; color: var(--accent); text-shadow: 0 0 10px var(--accent); }
+  #reply { max-width: min(880px, 92vw); font-size: clamp(15px, 1.7vw, 21px); line-height: 1.5; min-height: 1.5em;
+    color: var(--text); text-shadow: 0 0 12px rgba(56,211,255,.35); }
+  #boot { position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%); width: min(420px, 86vw);
+    font-size: 12px; letter-spacing: .16em; color: var(--accent); opacity: 0; transition: opacity .5s; pointer-events: none; }
+  #boot.show { opacity: 1; }
+  #boot p { margin: 3px 0; opacity: 0; animation: in .3s forwards; }
+  @media (max-width: 820px) {
+    .layer { grid-template-columns: 1fr; }
+    .left, .right { display: none; }
+    .title, .clock { grid-column: 1; text-align: center; }
+    .clock { display: none; }
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="boot"></div>
+<div class="layer">
+  <div class="title"><b>J.A.R.V.I.S.</b><span>ASSISTENTE PESSOAL DE VOZ</span></div>
+  <div></div>
+  <div class="clock"><b id="time">--:--</b><span id="date">&nbsp;</span></div>
+
+  <div class="panel left sys"><h2>SISTEMAS</h2>
+    <div>MICROFONE <em data-k="0">STANDBY</em></div>
+    <div>HOTWORD <em data-k="1">STANDBY</em></div>
+    <div>WHISPER LOCAL <em data-k="2">STANDBY</em></div>
+    <div>NÚCLEO CLAUDE <em data-k="3">STANDBY</em></div>
+    <div>SÍNTESE DE VOZ <em data-k="4">STANDBY</em></div>
+  </div>
+  <div></div>
+  <div class="panel right"><h2>REGISTRO</h2><div id="log"></div></div>
+
+  <div class="bottom"><div id="reply"></div><div id="status">EM ESPERA</div></div>
+</div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const canvas = $("#c"), ctx = canvas.getContext("2d");
+let W, H, DPR;
+function resize() {
+  DPR = window.devicePixelRatio || 1;
+  W = canvas.width = innerWidth * DPR; H = canvas.height = innerHeight * DPR;
+}
+addEventListener("resize", resize); resize();
+
+/* ---------- estados: cor, velocidade, energia ---------- */
+const STATES = {
+  idle:      { label: "EM ESPERA",   hue: 200, light: 55, speed: .25, energy: .04 },
+  wake:      { label: "ATIVADO",     hue: 190, light: 65, speed: 1.2, energy: .35 },
+  boot:      { label: "INICIALIZANDO", hue: 190, light: 65, speed: 1.6, energy: .5 },
+  listening: { label: "OUVINDO",     hue: 165, light: 60, speed: .7,  energy: .6 },
+  thinking:  { label: "PROCESSANDO", hue: 40,  light: 60, speed: 2.4, energy: .2 },
+  speaking:  { label: "RESPONDENDO", hue: 205, light: 65, speed: .9,  energy: .85 },
+};
+let cur = { ...STATES.idle }, target = STATES.idle, stateName = "idle", pulse = 0;
+const lerp = (a, b, t) => a + (b - a) * t;
+
+function setState(name) {
+  if (!STATES[name]) name = "idle";
+  stateName = name; target = STATES[name];
+  $("#status").textContent = target.label;
+}
+
+/* ---------- desenho do reator ---------- */
+let rot = 0, t0 = performance.now();
+const bars = Array.from({ length: 120 }, () => Math.random());
+function col(a = 1, l = 0) { return `hsla(${cur.hue}, 100%, ${cur.light + l}%, ${a})`; }
+
+function frame(now) {
+  const dt = Math.min(.05, (now - t0) / 1000); t0 = now;
+  for (const k of ["hue", "light", "speed", "energy"]) cur[k] = lerp(cur[k], target[k], .06);
+  rot += dt * cur.speed;
+  pulse += dt * (stateName === "speaking" ? 7 : 2.2);
+
+  ctx.clearRect(0, 0, W, H);
+  const cx = W / 2, cy = H * 0.47, R = Math.min(W, H) * 0.24;
+  ctx.save(); ctx.translate(cx, cy);
+
+  // brilho de fundo
+  const g = ctx.createRadialGradient(0, 0, R * .1, 0, 0, R * 2.3);
+  g.addColorStop(0, col(.20 + cur.energy * .18)); g.addColorStop(1, col(0));
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, R * 2.3, 0, 7); ctx.fill();
+
+  // barras de áudio (anel externo)
+  const N = bars.length;
+  for (let i = 0; i < N; i++) {
+    bars[i] = lerp(bars[i], Math.random(), .18);
+    const a = (i / N) * Math.PI * 2 + rot * .15;
+    const wave = stateName === "speaking" ? (Math.sin(pulse + i * .5) * .5 + .5) : 1;
+    const len = R * (.05 + cur.energy * .34 * bars[i] * wave);
+    ctx.strokeStyle = col(.75); ctx.lineWidth = 2 * DPR;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a) * R * 1.32, Math.sin(a) * R * 1.32);
+    ctx.lineTo(Math.cos(a) * (R * 1.32 + len), Math.sin(a) * (R * 1.32 + len));
+    ctx.stroke();
+  }
+
+  // anel de marcações
+  ctx.strokeStyle = col(.5); ctx.lineWidth = 1 * DPR;
+  for (let i = 0; i < 90; i++) {
+    const a = (i / 90) * Math.PI * 2 - rot * .25, big = i % 5 === 0;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a) * R * 1.18, Math.sin(a) * R * 1.18);
+    ctx.lineTo(Math.cos(a) * R * (big ? 1.27 : 1.23), Math.sin(a) * R * (big ? 1.27 : 1.23));
+    ctx.stroke();
+  }
+
+  // arcos segmentados girando em sentidos opostos
+  const arcs = [[1.10, 3, .9, 1.0], [1.0, 5, 1.4, -1.3], [.86, 4, .7, 1.8], [.72, 2, 1.9, -2.2]];
+  arcs.forEach(([r, n, span, sp], k) => {
+    ctx.strokeStyle = col(k === 1 ? .95 : .6, k === 1 ? 8 : 0); ctx.lineWidth = (k === 1 ? 5 : 2.5) * DPR;
+    ctx.lineCap = "butt";
+    for (let i = 0; i < n; i++) {
+      const a0 = rot * sp + (i / n) * Math.PI * 2, a1 = a0 + (Math.PI * 2 / n) * span * .55;
+      ctx.beginPath(); ctx.arc(0, 0, R * r, a0, a1); ctx.stroke();
+    }
+  });
+
+  // círculos finos
+  ctx.lineWidth = 1 * DPR; ctx.strokeStyle = col(.35);
+  [1.34, .6, .48].forEach((r) => { ctx.beginPath(); ctx.arc(0, 0, R * r, 0, 7); ctx.stroke(); });
+
+  // núcleo pulsante
+  const core = R * (.34 + Math.sin(pulse) * .025 * (1 + cur.energy * 2));
+  const cg = ctx.createRadialGradient(0, 0, 0, 0, 0, core * 1.6);
+  cg.addColorStop(0, `hsla(${cur.hue}, 100%, 92%, .95)`); cg.addColorStop(.35, col(.85, 10)); cg.addColorStop(1, col(0));
+  ctx.fillStyle = cg; ctx.beginPath(); ctx.arc(0, 0, core * 1.6, 0, 7); ctx.fill();
+
+  // triângulo interno
+  ctx.strokeStyle = col(.9, 15); ctx.lineWidth = 2 * DPR; ctx.beginPath();
+  for (let i = 0; i < 3; i++) {
+    const a = -Math.PI / 2 + i * (Math.PI * 2 / 3) + rot * .4 * (stateName === "thinking" ? 3 : 1);
+    const x = Math.cos(a) * R * .4, y = Math.sin(a) * R * .4;
+    i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+  }
+  ctx.closePath(); ctx.stroke();
+  ctx.restore();
+
+  // cor de destaque global segue o estado
+  document.documentElement.style.setProperty("--accent", `hsl(${cur.hue} 100% ${cur.light + 5}%)`);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+/* ---------- relógio ---------- */
+function tick() {
+  const d = new Date();
+  $("#time").textContent = d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  $("#date").textContent = d.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" });
+}
+tick(); setInterval(tick, 1000);
+
+/* ---------- sistemas, boot, log, texto digitado ---------- */
+const sysEls = [...document.querySelectorAll(".sys em")];
+let allOnline = false;
+function sysOnline(animated) {
+  if (allOnline) return; allOnline = true;
+  sysEls.forEach((el, i) => setTimeout(() => { el.textContent = "ONLINE"; el.classList.add("on"); }, animated ? 700 * (i + 1) : 0));
+}
+
+function runBoot() {
+  const box = $("#boot"); box.innerHTML = ""; box.classList.add("show");
+  const lines = ["› CARREGANDO NÚCLEO...", "› CALIBRANDO SENSORES DE ÁUDIO...", "› SINCRONIZANDO MODELOS LOCAIS...",
+    "› ESTABELECENDO LINK NEURAL...", "› TODOS OS SISTEMAS ONLINE"];
+  lines.forEach((l, i) => setTimeout(() => { const p = document.createElement("p"); p.textContent = l; box.appendChild(p); }, i * 1100));
+  setTimeout(() => box.classList.remove("show"), lines.length * 1100 + 800);
+}
+
+let typer;
+function typeReply(text) {
+  clearInterval(typer); const el = $("#reply"); el.textContent = ""; let i = 0;
+  typer = setInterval(() => { el.textContent = text.slice(0, ++i); if (i >= text.length) clearInterval(typer); }, 22);
+}
+function addLog(cls, text) {
+  const log = $("#log"), p = document.createElement("p"); p.className = cls; p.textContent = text;
+  log.appendChild(p); while (log.children.length > 7) log.firstChild.remove();
+}
+
+function onEvent(e) {
+  if (e.state === "boot") { runBoot(); sysOnline(true); } else if (e.state !== "idle") sysOnline(false);
+  setState(e.state);
+  if (e.user) addLog("me", e.user);
+  if (e.state === "speaking" && e.text) { typeReply(e.text); addLog("ai", e.text); }
+  if (e.state === "wake" || e.state === "thinking") { clearInterval(typer); $("#reply").textContent = ""; }
+}
+
+const es = new EventSource("/events");
+es.onmessage = (m) => onEvent(JSON.parse(m.data));
+es.onerror = () => { $("#status").textContent = "SEM CONEXÃO COM O NÚCLEO"; };
+window.__hud = { onEvent };   // usado em testes
+</script>
+</body>
+</html>
