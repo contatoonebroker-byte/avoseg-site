@@ -97,9 +97,11 @@ class Brain:
         if tool is None:
             return f"Ferramenta desconhecida: {name}", True
         try:
-            return str(tool.func(**args)), False
+            out, err = str(tool.func(**args)), False
         except Exception as e:
-            return f"Erro ao executar {name}: {e}", True
+            out, err = f"Erro ao executar {name}: {e}", True
+        print(f"[ferramenta] resultado: {out[:400]}")
+        return out, err
 
     def _create(self, kwargs: dict, on_text=None):
         """Chamada à API; com `on_text`, usa streaming e entrega o texto conforme chega."""

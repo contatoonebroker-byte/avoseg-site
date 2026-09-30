@@ -2,7 +2,10 @@
 from __future__ import annotations
 
 import difflib
+import json
 import re
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 SECRETS = {"ANTHROPIC_API_KEY", "ELEVENLABS_API_KEY", "OPENAI_API_KEY", "SPOTIPY_CLIENT_SECRET"}
@@ -69,4 +72,24 @@ def check(path: Path, want: tuple[str, ...] = ("ANTHROPIC_API_KEY", "OPENAI_API_
             out.append(f"✓ {name}: {mask(name, found[name])}")
             if name.endswith("_API_KEY") and re.search(r"\s", found[name]):
                 out.append(f"! {name} tem espaço no meio do valor: confira se colou a chave inteira e só ela.")
+    return out
+
+
+def test_openai(key: str, model: str = "gpt-image-1", opener=urllib.request.urlopen) -> list[str]:
+    """Verifica a chave e o acesso ao modelo de imagem SEM gerar imagem (não tem custo)."""
+    out = []
+    for path, label in (("/v1/models", "chave da OpenAI"), (f"/v1/models/{model}", f"acesso ao modelo {model}")):
+        req = urllib.request.Request("https://api.openai.com" + path, headers={"Authorization": f"Bearer {key}"})
+        try:
+            opener(req, timeout=20)
+            out.append(f"✓ {label}: ok")
+        except urllib.error.HTTPError as e:
+            detail = ""
+            try:
+                detail = json.load(e).get("error", {}).get("message", "")
+            except Exception:
+                pass
+            out.append(f"✗ {label}: HTTP {e.code} {detail[:180]}")
+        except Exception as e:
+            out.append(f"✗ {label}: sem conexão com a OpenAI ({e})")
     return out

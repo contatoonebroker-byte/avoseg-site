@@ -674,3 +674,24 @@ def test_config_cleans_quotes_spaces_and_dotenv_overrides_empty_shell_variable(t
     monkeypatch.setenv("OPENAI_API_KEY", "")            # variável vazia herdada do Terminal
     cfg = cfgmod.Config.load()
     assert cfg.openai_key == "sk-abc" and cfg.image_provider == "openai"
+
+
+def test_openai_check_reports_key_and_model_access_without_spending(monkeypatch):
+    import urllib.error
+    from jarvis.envcheck import test_openai
+
+    def opener_ok(req, timeout=0):
+        return None
+
+    assert test_openai("k", "gpt-image-1", opener_ok) == ["✓ chave da OpenAI: ok", "✓ acesso ao modelo gpt-image-1: ok"]
+
+    def opener_no_model(req, timeout=0):
+        if req.full_url.endswith("/v1/models"):
+            return None
+        raise urllib.error.HTTPError(req.full_url, 404, "nf", {}, __import__("io").BytesIO(
+            b'{"error": {"message": "The model gpt-image-1 does not exist or you do not have access to it."}}'))
+
+    out = test_openai("k", "gpt-image-1", opener_no_model)
+    assert out[0].startswith("✓") and out[1].startswith("✗") and "HTTP 404" in out[1] and "do not have access" in out[1]
+    out = test_openai("k", "m", lambda *a, **k: (_ for _ in ()).throw(OSError("rede fora")))
+    assert all("sem conexão" in x for x in out)
