@@ -109,6 +109,19 @@ abre na tela e é salvo em `20-Avoseg/marketing/`. Ele usa o perfil de marca em 
 `JARVIS_MARKETING_MODEL` escolhe o modelo (padrão `claude-opus-5-5`; `claude-sonnet-5-5` é mais rápido e barato).
 Toda peça deve ser revisada quanto às regras de publicidade da SUSEP e da seguradora antes de publicar.
 
+### Arte dos posts
+Ao criar um post, o Jarvis também cria a **arte**: imagens PNG (carrossel 1080x1350, quadrado ou stories 1080x1920) com as
+cores, a fonte e o logo da marca, e o texto sempre correto (quem escreve é o layout, não um gerador de imagem).
+Elas ficam em `20-Avoseg/marketing/arte/<post>/slide-01.png...` e abrem numa galeria na tela.
+
+- **Colocar o logo:** salve em `~/JarvisBrain/20-Avoseg/marca/logo.png` (e `30-Avogroup/marca/logo.png`).
+- **Contatos e cores:** diga por voz ("o Instagram da Avoseg é @..., o WhatsApp é ...") ou edite `marca.md`
+  (linhas `- Instagram:`, `- WhatsApp:`, `- Site:`, `- Cores: #0F2744 #2563EB #F59E0B`, `- Rodapé legal:`).
+- **Comandos:** "refaça a arte em estilo escuro", "faça a arte para stories", "abre a pasta da arte".
+- **Foto/fundo por IA (opcional):** `IMAGE_PROVIDER=openai` e `OPENAI_API_KEY` no `.env`; depois "crie a arte com foto por IA".
+  A IA gera só o fundo da capa (sem texto); cada imagem é cobrada pela OpenAI.
+- A renderização usa o Google Chrome do Mac via Playwright (`pip install -r requirements.txt`; não baixa navegador).
+
 ## Tela HUD
 
 Ao iniciar, o Jarvis abre uma tela futurista no navegador (`http://127.0.0.1:8765`) que reage em tempo real:

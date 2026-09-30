@@ -78,7 +78,15 @@ TEMPLATE_MARCA_AVOSEG = """# Marca Avoseg
 - PREENCHA: palavras, temas e promessas proibidas
 
 ## Identidade visual
-- PREENCHA: cores, fontes, estilo das artes
+- Cores: #0F2744 #2563EB #F59E0B (azul-marinho, azul e dourado, do site)
+- Logo: coloque o arquivo em 20-Avoseg/marca/logo.png (a arte usa o logo se ele existir)
+- Estilo das artes: PREENCHA
+
+## Contatos (aparecem na arte)
+- Instagram: PREENCHA
+- WhatsApp: PREENCHA
+- Site: PREENCHA
+- Rodapé legal: PREENCHA
 """
 
 TEMPLATE_MARCA_AVOGROUP = """# Marca Avogroup
@@ -102,7 +110,14 @@ TEMPLATE_MARCA_AVOGROUP = """# Marca Avogroup
 - PREENCHA
 
 ## Identidade visual
-- PREENCHA
+- Cores: PREENCHA (ex.: #0F2744 #2563EB #F59E0B)
+- Logo: coloque o arquivo em 30-Avogroup/marca/logo.png
+
+## Contatos (aparecem na arte)
+- Instagram: PREENCHA
+- WhatsApp: PREENCHA
+- Site: PREENCHA
+- Rodapé legal: PREENCHA
 """
 
 

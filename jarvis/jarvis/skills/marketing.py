@@ -7,9 +7,11 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
+from pathlib import Path
 
-from ..secondbrain.store import Brain, norm
+from ..secondbrain.store import AREAS, Brain, norm
 from ..tools import Tool
+from . import arte, imagem
 
 ESPECIALISTA = """Você é estrategista de marketing e copywriter sênior, especialista em marketing de conteúdo \
 para corretoras de seguros e serviços financeiros no Brasil (Instagram, Facebook, LinkedIn, WhatsApp, Reels/TikTok e e-mail).
@@ -24,6 +26,12 @@ Como você trabalha:
   Stories (sequência curta com enquete ou caixinha), LinkedIn (mais argumento e dados), WhatsApp (curto e direto).
 - Usa SOMENTE fatos presentes no perfil de marca e no pedido. Se faltar um dado importante (preço, prazo, condição),
   não invente: escreva "[CONFIRMAR: ...]" no ponto exato.
+
+Texto da ARTE (campo 'slides'): são os textos curtos que vão escritos na imagem, então precisam funcionar sozinhos.
+- Carrossel: 1 capa + 3 a 6 slides de conteúdo + 1 slide final de chamada para ação. Post único ou stories: 1 a 3 slides.
+- Título com até 9 palavras (forte e claro); 'texto' com até 25 palavras; 'kicker' é um rótulo curto (2 a 4 palavras).
+- No slide final (tipo cta), 'titulo' é a pergunta ou convite e 'texto' é o botão (ex.: "Chame no WhatsApp").
+- Nunca coloque "[CONFIRMAR]" nos slides: se faltar um dado, simplesmente não o use na arte.
 
 Conformidade (seguros no Brasil), sempre:
 - Não prometa ganho, economia garantida, "menor preço do mercado", aprovação ou indenização garantida.
@@ -46,9 +54,14 @@ POST_SCHEMA = {
         "melhor_horario": {"type": "string"},
         "alternativas_de_gancho": {"type": "array", "items": {"type": "string"}},
         "observacoes_de_conformidade": {"type": "string"},
+        "slides": {"type": "array", "items": {
+            "type": "object",
+            "properties": {"tipo": {"type": "string", "enum": ["capa", "conteudo", "cta"]}, "kicker": {"type": "string"},
+                           "titulo": {"type": "string"}, "texto": {"type": "string"}},
+            "required": ["tipo", "kicker", "titulo", "texto"], "additionalProperties": False}},
     },
     "required": ["titulo_interno", "plataforma", "formato", "gancho", "legenda", "cta", "hashtags", "roteiro",
-                 "briefing_visual", "melhor_horario", "alternativas_de_gancho", "observacoes_de_conformidade"],
+                 "briefing_visual", "melhor_horario", "alternativas_de_gancho", "observacoes_de_conformidade", "slides"],
     "additionalProperties": False,
 }
 IDEIAS_SCHEMA = {
@@ -88,7 +101,8 @@ def _post_markdown(d: dict) -> str:
             f"## Ganchos alternativos\n{alt}\n\n## Conformidade\n{d['observacoes_de_conformidade']}\n")
 
 
-def make_tools(brain: Brain, client, model: str, on_change=None, on_post=None) -> list[Tool]:
+def make_tools(brain: Brain, client, model: str, on_change=None, on_post=None, on_art=None,
+               image_cfg: tuple[str, str, str] = ("none", "", "gpt-image-1"), renderer=None, image_fn=None) -> list[Tool]:
     def especialista(empresa: str, pedido: str, schema: dict, max_tokens: int = 4000) -> dict:
         marca, _ = brain.brand(empresa)
         recentes = [n.title for n in brain.recent(8, None, _area(empresa), "post")]
@@ -114,12 +128,70 @@ def make_tools(brain: Brain, client, model: str, on_change=None, on_post=None) -
                 "conversa rápida: o que a empresa vende, quem é o público, o tom de voz, os diferenciais e o que evitar. "
                 "Depois salve as respostas com a ferramenta definir_marca.")
 
+    state: dict = {"last": None}
+    image_fn = image_fn or imagem.generate_background
+
+    def _logo(empresa: str) -> Path | None:
+        d = brain.root / AREAS[_area(empresa)] / "marca"
+        return next((p for ext in ("png", "jpg", "jpeg") for p in [d / f"logo.{ext}"] if p.exists()), None)
+
+    def _fazer_arte(empresa: str, post: dict, note, formato: str = "", estilo: str = "misto", com_ia: bool = False) -> str:
+        """Gera os PNGs da arte para o post e avisa a tela. Devolve um texto de resultado."""
+        text, _ = brain.brand(empresa)
+        brand = arte.brand_from_text(empresa.strip().title() or "Avoseg", text, _logo(empresa))
+        out_dir = note.path.parent / "arte" / note.path.stem
+        bg, aviso = None, ""
+        if com_ia:
+            try:
+                provider, key, modelo = image_cfg
+                png = image_fn(imagem.build_prompt(post.get("briefing_visual", ""), post.get("titulo_interno", "")),
+                               provider, key, modelo)
+                bg = out_dir / "fundo-ia.png"
+                bg.parent.mkdir(parents=True, exist_ok=True)
+                bg.write_bytes(png)
+            except Exception as e:
+                aviso = f" (Não usei imagem de IA: {e})"
+        try:
+            files = arte.make_art(post, brand, out_dir, formato or post.get("formato", ""), estilo, bg, renderer)
+        except Exception as e:
+            return f"A arte não saiu: {e}"
+        if on_art:
+            on_art({"titulo": post.get("titulo_interno", ""), "pasta": str(out_dir),
+                    "images": [str(f.relative_to(brain.root)).replace("\\", "/") for f in files]})
+        sem_logo = "" if brand.logo else " Dica: coloque o logo em " + f"{AREAS[_area(empresa)]}/marca/logo.png para aparecer na arte."
+        return f"Arte criada: {len(files)} imagem(ns) em {out_dir}.{aviso}{sem_logo}"
+
+    def criar_arte(estilo: str = "misto", formato: str = "", com_ia: bool = False, referencia: str = "",
+                   abrir_pasta: bool = False) -> str:
+        """Cria (ou refaz) a arte do último post, ou de outro post salvo (pelo título)."""
+        last = state["last"]
+        if referencia:
+            note = brain.get(referencia)
+            sidecar = note.path.with_suffix(".json") if note else None
+            if not note or not sidecar or not sidecar.exists():
+                return "Não achei esse post com dados para gerar a arte."
+            last = {"post": json.loads(sidecar.read_text(encoding="utf-8")), "note": note,
+                    "empresa": "Avogroup" if "30-Avogroup" in str(note.path) else "Avoseg"}
+        if not last:
+            return "Ainda não criei nenhum post nesta conversa. Peça primeiro um post, ou diga o título de um post salvo."
+        if com_ia and image_cfg[0] == "none":
+            com_ia = False
+            aviso = " A imagem por IA não está configurada (IMAGE_PROVIDER e OPENAI_API_KEY no .env); fiz a arte só com o layout da marca."
+        else:
+            aviso = ""
+        res = _fazer_arte(last["empresa"], last["post"], last["note"], formato, estilo, com_ia) + aviso
+        if abrir_pasta:
+            import subprocess, sys
+            if sys.platform == "darwin":
+                subprocess.run(["open", str(last["note"].path.parent / "arte" / last["note"].path.stem)], check=False)
+        return res
+
     def definir_marca(empresa: str, informacoes: str) -> str:
         brain.save_brand(empresa, informacoes)
         return f"Perfil de marca de {empresa} atualizado."
 
     def criar_post(empresa: str, tema: str, plataforma: str = "instagram", formato: str = "post",
-                   objetivo: str = "", observacoes: str = "") -> str:
+                   objetivo: str = "", observacoes: str = "", com_arte: bool = True, com_ia: bool = False) -> str:
         if (msg := _precisa_marca(empresa)):
             return msg
         pedido = (f"Crie {formato} para {plataforma} da empresa {empresa}.\nTema: {tema}\n"
@@ -131,6 +203,8 @@ def make_tools(brain: Brain, client, model: str, on_change=None, on_post=None) -
             return f"Não consegui criar o post agora: {e}"
         note = brain.add_note(f"Post: {d['titulo_interno']}", _post_markdown(d), _area(empresa), "post",
                               ["marketing", plataforma, formato], subdir="marketing")
+        note.path.with_suffix(".json").write_text(json.dumps(d, ensure_ascii=False, indent=1), encoding="utf-8")
+        state["last"] = {"post": d, "note": note, "empresa": empresa}
         if on_change:
             on_change(note)
         if on_post:
@@ -138,7 +212,12 @@ def make_tools(brain: Brain, client, model: str, on_change=None, on_post=None) -
                      "formato": d["formato"], "gancho": d["gancho"], "legenda": d["legenda"], "cta": d["cta"],
                      "hashtags": d["hashtags"], "roteiro": d["roteiro"], "visual": d["briefing_visual"],
                      "horario": d["melhor_horario"], "conformidade": d["observacoes_de_conformidade"]})
-        return (f"Post '{d['titulo_interno']}' criado e salvo no Second Brain; está aberto na tela. "
+        resultado_arte = ""
+        if com_arte:
+            if com_ia and image_cfg[0] == "none":
+                com_ia = False
+            resultado_arte = " " + _fazer_arte(empresa, d, note, formato, "misto", com_ia)
+        return (f"Post '{d['titulo_interno']}' criado e salvo no Second Brain; está aberto na tela.{resultado_arte} "
                 f"Gancho: {d['gancho']} CTA: {d['cta']} Melhor horário: {d['melhor_horario']}. "
                 f"Conformidade: {d['observacoes_de_conformidade'][:200]} "
                 "Diga ao usuário o gancho e ofereça ler a legenda; não leia tudo em voz alta.")
@@ -186,8 +265,18 @@ def make_tools(brain: Brain, client, model: str, on_change=None, on_post=None) -
               "tema": {"type": "string", "description": "Assunto do post."},
               "plataforma": {"type": "string", "description": "instagram, facebook, linkedin, whatsapp, tiktok..."},
               "formato": {"type": "string", "description": "post, carrossel, reels, stories, artigo, mensagem..."},
-              "objetivo": {"type": "string"}, "observacoes": {"type": "string"}},
+              "objetivo": {"type": "string"}, "observacoes": {"type": "string"},
+              "com_arte": {"type": "boolean", "description": "Gerar também a arte (padrão: sim)."},
+              "com_ia": {"type": "boolean", "description": "Usar foto/fundo gerado por IA (só se o usuário pedir)."}},
              ["empresa", "tema"], criar_post),
+        Tool("criar_arte",
+             "Cria ou refaz a ARTE (imagens PNG com a identidade da marca) do último post, ou de um post salvo "
+             "pelo título. Use quando o usuário pedir a arte, o design, as imagens do post, outro estilo ou a pasta.",
+             {"estilo": {"type": "string", "enum": ["misto", "escuro", "claro"]},
+              "formato": {"type": "string", "description": "feed (4:5), quadrado, story (vertical)."},
+              "com_ia": {"type": "boolean", "description": "Fundo da capa gerado por IA (só se pedir)."},
+              "referencia": {"type": "string", "description": "Título ou id de um post salvo (vazio = o último)."},
+              "abrir_pasta": {"type": "boolean", "description": "Abrir a pasta no Finder."}}, [], criar_arte),
         Tool("ideias_de_conteudo", "Gera ideias de conteúdo de marketing para uma empresa e salva no Second Brain.",
              {"empresa": empresas, "quantidade": {"type": "integer"}, "foco": {"type": "string"}},
              ["empresa"], ideias_de_conteudo),
@@ -195,6 +284,7 @@ def make_tools(brain: Brain, client, model: str, on_change=None, on_post=None) -
              {"empresa": empresas, "dias": {"type": "integer"}, "posts_por_semana": {"type": "integer"},
               "foco": {"type": "string"}}, ["empresa"], planejar_calendario),
         Tool("definir_marca",
-             "Salva no perfil de marca de uma empresa o que o usuário contou (público, tom, diferenciais, o que evitar).",
+             "Salva no perfil de marca de uma empresa o que o usuário contou. Escreva como itens de lista no formato "
+             "'- Campo: valor' (Público, Tom, Diferenciais, Evitar, Cores, Instagram, WhatsApp, Site, Rodapé legal).",
              {"empresa": empresas, "informacoes": {"type": "string"}}, ["empresa", "informacoes"], definir_marca),
     ]

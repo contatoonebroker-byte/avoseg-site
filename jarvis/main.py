@@ -74,8 +74,11 @@ def main() -> None:
     tools = build_tools(cfg, notify=say, publish=lambda t: hud.publish("timers", t), spotify=spotify)
     tools += second_brain_tools(sb, on_change=on_note, on_show=show_brain,
                                 on_list=lambda items, titulo: hud.card("notes", {"items": items, "titulo": titulo}))
-    tools += marketing_tools(sb, client, cfg.marketing_model, on_change=on_note,
-                             on_post=lambda d: hud.publish("post", d))
+    hud.art_root = sb.root
+    tools += marketing_tools(
+        sb, client, cfg.marketing_model, on_change=on_note, on_post=lambda d: hud.publish("post", d),
+        on_art=lambda d: hud.card("arte", {**d, "images": ["/arte/" + i for i in d["images"]]}),
+        image_cfg=(cfg.image_provider, cfg.openai_key, cfg.openai_image_model))
     brain = Brain(client, cfg.model, tools, cfg.user_name, cfg.city,
                   profile_provider=sb.read_profile, context_provider=recall)
 

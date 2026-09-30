@@ -142,6 +142,10 @@
   #post .nl b { font-weight: 500; font-size: 13px; } #post .nl small { color: var(--dim); font-size: 11px; margin-left: 8px; }
   #post .nl p { font-size: 12px; color: var(--dim); margin-top: 2px; }
   #post .back { all: unset; cursor: pointer; color: var(--accent); font-size: 11px; letter-spacing: .14em; }
+  #post .art-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-top: 12px; }
+  #post .art-grid img { width: 100%; border: 1px solid var(--line); cursor: zoom-in; display: block; }
+  #post img.big { width: 100%; max-height: 62vh; object-fit: contain; margin-top: 12px; border: 1px solid var(--line); cursor: zoom-out; }
+  #post .btn { all: unset; cursor: pointer; border: 1px solid var(--line); padding: 5px 12px; font-size: 11px; letter-spacing: .14em; color: var(--accent); margin-right: 8px; }
   #post .tags { color: var(--accent); font-size: 12px; }
   #post .warn { color: var(--warn); font-size: 12px; }
   @media (max-height: 700px) { .hide-short { display: none; } }
@@ -480,13 +484,13 @@ const render = {
       `<div class="note-item" style="--c:${AREA_COLOR[n.area] || "#94a3b8"}" onclick="openNote(${i})"><i></i><b>${esc(n.title)}</b><span>${esc(n.date.slice(5).split("-").reverse().join("/"))}</span></div>`).join("") || `<div class="muted">Nenhuma nota ainda.</div>`);
   },
   post(d) {
-    const el = $("#post");
+    window.__post = d; const el = $("#post");
     el.innerHTML = `<div class="kicker"><span>NOVO POST · ${esc(d.empresa).toUpperCase()} · ${esc(d.plataforma).toUpperCase()} · ${esc(d.formato).toUpperCase()}</span><button title="Fechar" onclick="closePost()">✕</button></div>
       <h3>${esc(d.titulo)}</h3><h4>GANCHO</h4><p>${esc(d.gancho)}</p><h4>LEGENDA</h4><p>${esc(d.legenda)}</p>
       <h4>CHAMADA PARA AÇÃO</h4><p>${esc(d.cta)}</p><div class="tags">${d.hashtags.map(esc).join(" ")}</div>
       ${d.roteiro.length ? `<h4>ROTEIRO</h4><ol>${d.roteiro.map((r) => `<li>${esc(r)}</li>`).join("")}</ol>` : ""}
       <h4>BRIEFING VISUAL</h4><p>${esc(d.visual)}</p><h4>MELHOR HORÁRIO</h4><p>${esc(d.horario)}</p>
-      <h4>CONFORMIDADE</h4><p class="warn">${esc(d.conformidade)}</p>`;
+      <h4>CONFORMIDADE</h4><p class="warn">${esc(d.conformidade)}</p>${lastArt ? `<div style="margin-top:12px"><button class="btn" onclick="cards.arte(lastArt)">VER ARTE</button></div>` : ""}`;
     el.classList.add("show"); clearTimeout(window.__postT); window.__postT = setTimeout(closePost, 180000);
   },
   agenda(d) {
@@ -535,7 +539,23 @@ let lastList = null;
 function listCard() { if (lastList) cards.notes(lastList); }
 function openNote(i) { const n = (window.__notes || [])[i]; if (n) noteCard(n, false); }
 function openListed(i) { const n = lastList.items[i]; if (n) noteCard(n, true, lastList.titulo); }
+let lastArt = null;
+function artBig(i) {
+  const el = $("#post");
+  el.innerHTML = `<div class="kicker"><span>ARTE · ${i + 1} DE ${lastArt.images.length}</span><button title="Fechar" onclick="closePost()">✕</button></div>
+    <img class="big" src="${esc(lastArt.images[i])}" onclick="cards.arte(lastArt)" title="Clique para voltar à galeria">
+    <div style="margin-top:10px"><button class="btn" onclick="artBig(${(i + lastArt.images.length - 1) % lastArt.images.length})">← ANTERIOR</button>
+    <button class="btn" onclick="artBig(${(i + 1) % lastArt.images.length})">PRÓXIMO →</button></div>`;
+}
 const cards = {
+  arte(d) {
+    lastArt = d; const el = $("#post");
+    el.innerHTML = `<div class="kicker"><span>ARTE · ${esc(d.titulo).toUpperCase()}</span><button title="Fechar" onclick="closePost()">✕</button></div>
+      <div class="art-grid">${d.images.map((u, i) => `<img src="${esc(u)}" loading="lazy" onclick="artBig(${i})">`).join("")}</div>
+      <p style="margin-top:12px;font-size:11px;color:var(--dim)">Salvo em: ${esc(d.pasta)}</p>
+      ${window.__post ? `<div style="margin-top:8px"><button class="btn" onclick="render.post(window.__post)">VER LEGENDA E TEXTO</button></div>` : ""}`;
+    el.classList.add("show"); clearTimeout(window.__postT); window.__postT = setTimeout(closePost, 300000);
+  },
   notes(d) {
     lastList = d; const el = $("#post");
     el.innerHTML = `<div class="kicker"><span>NOTAS · ${esc(String(d.titulo).toUpperCase())}</span><button title="Fechar" onclick="closePost()">✕</button></div>` +

@@ -31,6 +31,9 @@ class Config:
     city: str
     brain_dir: str
     marketing_model: str
+    image_provider: str
+    openai_key: str
+    openai_image_model: str
     eleven_key: str
     eleven_voice: str
     eleven_model: str
@@ -70,6 +73,9 @@ class Config:
             city=env("JARVIS_CITY", "Sorocaba"),
             brain_dir=env("JARVIS_BRAIN_DIR", str(Path.home() / "JarvisBrain")),
             marketing_model=env("JARVIS_MARKETING_MODEL", "claude-opus-5-5"),
+            image_provider=env("IMAGE_PROVIDER", "none"),
+            openai_key=env("OPENAI_API_KEY", ""),
+            openai_image_model=env("OPENAI_IMAGE_MODEL", "gpt-image-1"),
             eleven_key=env("ELEVENLABS_API_KEY", ""),
             eleven_voice=env("ELEVENLABS_VOICE_ID", ""),
             eleven_model=env("ELEVENLABS_MODEL", "eleven_flash_v2_5"),

@@ -123,6 +123,13 @@ def test_voice_brain_injects_relevant_notes_and_profile(sb):
     assert "Gosta de respostas objetivas" in seen["system"] and "Second Brain" in seen["system"]
 
 
+class _NoRender:
+    def render(self, jobs, size):
+        for _, out in jobs:
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_bytes(b"png")
+
+
 class FakeMarketingClient:
     def __init__(self, payload, stop="end_turn"):
         self.messages, self.payload, self.stop, self.calls = self, payload, stop, []
@@ -151,7 +158,7 @@ def test_marketing_blocks_when_brand_profile_is_empty(sb):
 def test_marketing_creates_saves_and_shows_post(sb):
     client = FakeMarketingClient(POST)
     changed, shown = [], []
-    tools = {t.name: t for t in marketing.make_tools(sb, client, "claude-opus-5-5", changed.append, shown.append)}
+    tools = {t.name: t for t in marketing.make_tools(sb, client, "claude-opus-5-5", changed.append, shown.append, renderer=_NoRender())}
     out = tools["criar_post"].func(empresa="Avoseg", tema="seguro de frota", plataforma="instagram", formato="carrossel")
     assert "Frota sem susto" in out and "Gancho" in out
     note = changed[0]
@@ -166,7 +173,7 @@ def test_marketing_creates_saves_and_shows_post(sb):
 
 def test_marketing_avoids_repeating_recent_posts_and_handles_failure(sb):
     client = FakeMarketingClient(POST)
-    tools = {t.name: t for t in marketing.make_tools(sb, client, "claude-haiku-4-5")}
+    tools = {t.name: t for t in marketing.make_tools(sb, client, "claude-haiku-4-5", renderer=_NoRender())}
     tools["criar_post"].func(empresa="Avoseg", tema="frota")
     tools["criar_post"].func(empresa="Avoseg", tema="frota de novo")
     assert "Frota sem susto" in client.calls[1]["system"]          # lembra do que já foi criado

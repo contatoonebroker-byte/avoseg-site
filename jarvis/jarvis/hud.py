@@ -7,13 +7,17 @@ from __future__ import annotations
 
 import json
 import queue
+import re
 import socket
 import threading
 import time
+import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 PAGE = Path(__file__).parent / "hud" / "index.html"
+ART_PATH = re.compile(r"(20-Avoseg|30-Avogroup)/marketing/arte/[\w.\-]+/[\w.\-]+\.(png|jpg|jpeg)")
+ART_TYPES = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg"}
 
 
 class Hud:
@@ -24,6 +28,7 @@ class Hud:
         self._last: dict = {"state": "idle"}
         self._widgets: dict[str, dict] = {}
         self.started = time.time()
+        self.art_root: Path | None = None   # pasta do Second Brain; só as imagens de arte dela são servidas
         self.commands = 0
         self._server: ThreadingHTTPServer | None = None
 
@@ -98,11 +103,27 @@ class Hud:
                     self.end_headers()
                     self.wfile.write(body)
                     return
+                if self.path.startswith("/arte/"):
+                    return self._art(urllib.parse.unquote(self.path[len("/arte/"):].split("?")[0]))
                 if self.path == "/favicon.ico":
                     self.send_response(204)
                     self.end_headers()
                     return
                 self.send_error(404)
+
+            def _art(self, rel: str) -> None:
+                root = hud.art_root
+                ok = root is not None and ART_PATH.fullmatch(rel) and ".." not in rel.split("/")
+                p = (root / rel).resolve() if ok else None
+                if not (p and root.resolve() in p.parents and p.is_file()):
+                    return self.send_error(404)
+                body = p.read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", ART_TYPES[p.suffix.lower().lstrip(".")])
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Cache-Control", "no-cache")
+                self.end_headers()
+                self.wfile.write(body)
 
             def _events(self) -> None:
                 self.send_response(200)
