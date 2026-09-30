@@ -14,9 +14,9 @@ def _fmt(note, snippet: str | None = None) -> str:
     return f"- [{note.id}] {note.title} ({note.area}/{note.tipo}, {quando}): {resto}"
 
 
-def make_tools(brain: Brain, on_change=None, on_show=None) -> list[Tool]:
+def make_tools(brain: Brain, on_change=None, on_show=None, on_list=None) -> list[Tool]:
     """on_change(nota): chamado depois de gravar uma nota (atualiza a tela do cérebro).
-    on_show(): mostra o cérebro na tela."""
+    on_show(): mostra o cérebro na tela. on_list(notas): abre a lista de notas na tela."""
 
     def anotar(texto: str, titulo: str, area: str = "inbox", tipo: str = "nota", tags: list | None = None) -> str:
         note = brain.add_note(titulo, texto, area, tipo, [str(t) for t in (tags or [])][:6])
@@ -51,6 +51,19 @@ def make_tools(brain: Brain, on_change=None, on_show=None) -> list[Tool]:
         brain.add_profile_fact(fato)
         return "Guardei no seu perfil. Vou levar isso em conta daqui para frente."
 
+    def mostrar_notas(consulta: str = "", area: str | None = None, limite: int = 10) -> str:
+        area = area if area in AREAS else None
+        limite = max(1, min(limite, 20))
+        if consulta.strip():
+            notes = [n for n, _ in brain.search(consulta, limite, area)]
+        else:
+            notes = brain.recent(limite, None, area)
+        if not notes:
+            return "Não encontrei notas para mostrar."
+        if on_list:
+            on_list(brain.notes_payload(notes=notes), consulta or ("recentes" + (f" em {area}" if area else "")))
+        return "Abri a lista na tela: " + "; ".join(f"{n.title} ({n.area})" for n in notes[:6])
+
     def mostrar_cerebro() -> str:
         if on_show:
             on_show()
@@ -82,6 +95,11 @@ def make_tools(brain: Brain, on_change=None, on_show=None) -> list[Tool]:
         Tool("lembrar_sobre_mim",
              "Guarda no perfil do usuário uma preferência ou fato duradouro sobre ele (gostos, rotina, regras).",
              {"fato": {"type": "string"}}, ["fato"], lembrar_sobre_mim),
+        Tool("mostrar_notas",
+             "Abre na tela a lista das notas (as mais recentes, de uma área ou de uma busca). Use quando o usuário "
+             "pedir para ver, mostrar ou abrir suas notas.",
+             {"consulta": {"type": "string", "description": "Opcional: palavras para filtrar."},
+              "area": {"type": "string", "enum": _AREA_ENUM}, "limite": {"type": "integer"}}, [], mostrar_notas),
         Tool("mostrar_cerebro", "Mostra na tela o cérebro animado com todas as notas e conexões.",
              func=mostrar_cerebro),
     ]

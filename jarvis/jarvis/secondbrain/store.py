@@ -316,7 +316,10 @@ class Brain:
 
     def recent(self, limit: int = 10, days: int | None = None, area: str | None = None,
                tipo: str | None = None) -> list[Note]:
-        sql, args = f"select {self._COLS} from notes where tipo != 'perfil'", []
+        # perfil e marca são arquivos de configuração: só aparecem se pedidos pelo tipo
+        sql, args = f"select {self._COLS} from notes where tipo not in ('perfil', 'marca')", []
+        if tipo in ("perfil", "marca"):
+            sql = f"select {self._COLS} from notes where 1 = 1"
         if days:
             sql += " and created >= ?"
             args.append((datetime.now() - timedelta(days=days)).isoformat(timespec="seconds"))
@@ -330,8 +333,15 @@ class Brain:
         args.append(limit)
         return [self._row_to_note(r) for r in self._db.execute(sql, args)]
 
+    def notes_payload(self, limit: int = 12, notes: list[Note] | None = None) -> list[dict]:
+        """Notas no formato que a tela usa (com o texto, limitado, para abrir ao clicar)."""
+        items = notes if notes is not None else self.recent(limit)
+        return [{"id": n.id, "title": n.title, "area": n.area, "tipo": n.tipo, "tags": n.tags,
+                 "date": n.created[:10], "body": n.body[:3000]} for n in items]
+
     def count(self) -> int:
-        return self._db.execute("select count(*) from notes").fetchone()[0]
+        """Quantidade de notas suas (sem contar perfil e arquivos de marca)."""
+        return self._db.execute("select count(*) from notes where tipo not in ('perfil', 'marca')").fetchone()[0]
 
     def search(self, query: str, limit: int = 5, area: str | None = None) -> list[tuple[Note, str]]:
         """Busca por palavras (sem acento, com variações: 'transportadora' acha 'transportadoras').

@@ -65,13 +65,15 @@ def main() -> None:
     def on_note(note) -> None:          # nota nova: o cérebro na tela ganha um neurônio e se ilumina
         print(f"[cérebro] nota salva: {note.title!r} -> {note.path}")
         hud.publish("brain", sb.graph())
+        hud.publish("notes", sb.notes_payload(6))
         hud.emit("note", title=note.title, area=note.area)
 
     def recall(text: str) -> str:       # memória automática: notas relevantes para o que você acabou de dizer
         return "\n".join(f"- {n.title} ({n.area}, {n.created[:10]}): {n.excerpt(200)}" for n, _ in sb.recall(text, 3))
 
     tools = build_tools(cfg, notify=say, publish=lambda t: hud.publish("timers", t), spotify=spotify)
-    tools += second_brain_tools(sb, on_change=on_note, on_show=show_brain)
+    tools += second_brain_tools(sb, on_change=on_note, on_show=show_brain,
+                                on_list=lambda items, titulo: hud.card("notes", {"items": items, "titulo": titulo}))
     tools += marketing_tools(sb, client, cfg.marketing_model, on_change=on_note,
                              on_post=lambda d: hud.publish("post", d))
     brain = Brain(client, cfg.model, tools, cfg.user_name, cfg.city,
@@ -89,6 +91,7 @@ def main() -> None:
             print(f"No tablet, abra: {hud.lan_url()}")
         Widgets(hud, cfg.city, spotify).start()
         hud.publish("brain", sb.graph())
+        hud.publish("notes", sb.notes_payload(6))
         if cfg.hud_auto_open:
             webbrowser.open(hud.url)
 

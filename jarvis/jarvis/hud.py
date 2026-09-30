@@ -45,6 +45,14 @@ class Hud:
         for q in subs:
             self._offer(q, event)
 
+    def card(self, kind: str, data) -> None:
+        """Abre um cartão na tela (ex.: lista de notas). Efêmero: não é reenviado a quem conectar depois."""
+        event = {"type": "card", "kind": kind, "data": data}
+        with self._lock:
+            subs = list(self._subs)
+        for q in subs:
+            self._offer(q, event)
+
     @staticmethod
     def _offer(q: queue.Queue, event: dict) -> None:
         try:

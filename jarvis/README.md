@@ -89,6 +89,10 @@ Faça backup dessa pasta e **não a coloque em repositório público**.
 | "Registra no diário que fechei a apólice" | Acrescenta ao diário de hoje |
 | "Lembre que eu prefiro respostas curtas" | Guarda em `perfil.md` (o Jarvis lê sempre) |
 | "Mostre meu cérebro" (ou tecla `B` na tela) | Exibe o cérebro com todas as notas |
+| "Mostre minhas notas" / "quais foram minhas últimas notas?" / "mostre as notas de frota" | Abre a lista na tela (clique numa nota para ler; `Esc` fecha) |
+
+**Onde ver as notas:** no painel **NOTAS** da tela (clique para abrir), por voz, ou direto na pasta:
+`open ~/JarvisBrain` no Terminal abre o Finder nos arquivos `.md`.
 
 **Memória automática:** antes de responder, o Jarvis procura notas relevantes para o que você disse e as usa
 ("você tinha anotado que..."). Só o trecho relevante vai ao Claude; não guarde senhas nem CPFs nas notas.

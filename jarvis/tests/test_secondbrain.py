@@ -183,3 +183,37 @@ def test_define_brand_makes_empty_company_ready(sb):
         "- Holding que reúne corretora, consultoria e tecnologia.\n- Público: empresas médias de Sorocaba e região.\n"
         "- Tom: profissional, próximo e direto.\n- Diferencial: atendimento humano com tecnologia.\n"))
     assert sb.brand("avogroup")[1] is True
+
+
+def test_mostrar_notas_lists_recent_or_searched_notes_for_the_screen(sb):
+    sb.add_note("Ideia de post de frota", "carrossel de seguro de frota", "avoseg", "ideia")
+    sb.add_note("Comprar café", "café em grãos", "pessoal")
+    shown = []
+    tools = {t.name: t for t in make_tools(sb, on_list=lambda items, titulo: shown.append((items, titulo)))}
+    out = tools["mostrar_notas"].func()
+    assert "Abri a lista na tela" in out and len(shown[0][0]) >= 2 and shown[0][1] == "recentes"
+    tools["mostrar_notas"].func(consulta="carrossel")
+    assert [n["title"] for n in shown[1][0]] == ["Ideia de post de frota"] and "body" in shown[1][0][0]
+    assert tools["mostrar_notas"].func(consulta="zzz").startswith("Não encontrei")
+
+
+def test_hud_cards_are_ephemeral_and_not_replayed():
+    import http.client
+    from jarvis.hud import Hud
+
+    hud = Hud(port=0)
+    hud.start()
+    hud.card("notes", {"items": [], "titulo": "x"})          # ninguém conectado: descartado
+    ev = http.client.HTTPConnection("127.0.0.1", hud.port, timeout=3)
+    ev.request("GET", "/events")
+    resp = ev.getresponse()
+    resp.fp.readline(); resp.fp.readline()                   # estado inicial
+    hud.card("notes", {"items": [], "titulo": "y"})
+    assert b'"type": "card"' in resp.fp.readline()
+
+
+def test_starter_files_do_not_count_as_user_notes(sb):
+    assert sb.count() == 0 and sb.recent(10) == [] and sb.graph()["nodes"] == []
+    sb.add_note("Minha primeira nota", "olá", "pessoal")
+    assert sb.count() == 1 and [n.title for n in sb.recent(10)] == ["Minha primeira nota"]
+    assert sb.search("avoseg corretora")          # mas o perfil de marca continua pesquisável

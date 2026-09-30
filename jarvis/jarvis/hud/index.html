@@ -131,6 +131,17 @@
   #post h4 { font-size: 10px; letter-spacing: .24em; color: var(--dim); font-weight: 500; margin: 14px 0 5px; }
   #post p, #post li { font-size: 13px; line-height: 1.55; white-space: pre-wrap; }
   #post ol { padding-left: 18px; }
+  .note-item { display: flex; gap: 8px; align-items: baseline; padding: 4px 0; font-size: 11.5px; cursor: pointer;
+    border-bottom: 1px dashed rgba(80,200,255,.12); pointer-events: auto; }
+  .note-item:hover b { color: var(--accent); }
+  .note-item i { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--c, #94a3b8); box-shadow: 0 0 6px var(--c, #94a3b8); align-self: center; }
+  .note-item b { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+  .note-item span { color: var(--dim); font-size: 10.5px; flex: none; }
+  #post .nl { padding: 8px 0; border-bottom: 1px dashed rgba(80,200,255,.14); cursor: pointer; }
+  #post .nl:hover b { color: var(--accent); }
+  #post .nl b { font-weight: 500; font-size: 13px; } #post .nl small { color: var(--dim); font-size: 11px; margin-left: 8px; }
+  #post .nl p { font-size: 12px; color: var(--dim); margin-top: 2px; }
+  #post .back { all: unset; cursor: pointer; color: var(--accent); font-size: 11px; letter-spacing: .14em; }
   #post .tags { color: var(--accent); font-size: 12px; }
   #post .warn { color: var(--warn); font-size: 12px; }
   @media (max-height: 700px) { .hide-short { display: none; } }
@@ -167,6 +178,7 @@
   <!-- coluna direita -->
   <div class="col">
     <div class="panel" id="w-weather"><h2>CLIMA</h2><div class="muted">Carregando previsão...</div></div>
+    <div class="panel" id="w-notes"><h2>NOTAS <small>0</small></h2><div class="muted">Nenhuma nota ainda. Diga: “Jarvis, anota...”</div></div>
     <div class="panel hide-short" id="w-agenda"><h2>AGENDA</h2>
       <div class="muted">Google Agenda ainda não conectado.</div></div>
     <div class="panel hide-short" id="w-email"><h2>E-MAIL</h2>
@@ -462,6 +474,11 @@ const render = {
   timers(list) { timers = list; timersAt = Date.now(); renderTimers(); },
   session(d) { session = { ...d, at: Date.now() }; renderSession(); },
   brain(g) { setBrainGraph(g); },
+  notes(list) {
+    window.__notes = list;
+    $("#w-notes").innerHTML = `<h2>NOTAS <small>${BR.total || list.length} NO TOTAL</small></h2>` + (list.slice(0, 5).map((n, i) =>
+      `<div class="note-item" style="--c:${AREA_COLOR[n.area] || "#94a3b8"}" onclick="openNote(${i})"><i></i><b>${esc(n.title)}</b><span>${esc(n.date.slice(5).split("-").reverse().join("/"))}</span></div>`).join("") || `<div class="muted">Nenhuma nota ainda.</div>`);
+  },
   post(d) {
     const el = $("#post");
     el.innerHTML = `<div class="kicker"><span>NOVO POST · ${esc(d.empresa).toUpperCase()} · ${esc(d.plataforma).toUpperCase()} · ${esc(d.formato).toUpperCase()}</span><button title="Fechar" onclick="closePost()">✕</button></div>
@@ -507,6 +524,25 @@ function renderSession() {
   const up = session.uptime + Math.floor((Date.now() - session.at) / 1000);
   $("#session").textContent = `COMANDOS ${session.commands} · ATIVO ${fmtDur(up)}`;
 }
+function noteCard(n, list, titulo) {
+  const el = $("#post");
+  el.innerHTML = `<div class="kicker"><span>NOTA · ${esc((AREA_LABEL[n.area] || n.area).toUpperCase())} · ${esc(n.tipo.toUpperCase())} · ${esc(n.date)}</span><button title="Fechar" onclick="closePost()">✕</button></div>
+    <h3>${esc(n.title)}</h3><p>${esc(n.body)}</p>${n.tags.length ? `<div class="tags">${n.tags.map((t) => "#" + esc(t)).join(" ")}</div>` : ""}
+    ${list ? `<h4><button class="back" onclick="listCard()">← VOLTAR À LISTA</button></h4>` : ""}`;
+  el.classList.add("show");
+}
+let lastList = null;
+function listCard() { if (lastList) cards.notes(lastList); }
+function openNote(i) { const n = (window.__notes || [])[i]; if (n) noteCard(n, false); }
+function openListed(i) { const n = lastList.items[i]; if (n) noteCard(n, true, lastList.titulo); }
+const cards = {
+  notes(d) {
+    lastList = d; const el = $("#post");
+    el.innerHTML = `<div class="kicker"><span>NOTAS · ${esc(String(d.titulo).toUpperCase())}</span><button title="Fechar" onclick="closePost()">✕</button></div>` +
+      d.items.map((n, i) => `<div class="nl" onclick="openListed(${i})"><b><span style="color:${AREA_COLOR[n.area] || "#94a3b8"}">●</span> ${esc(n.title)}</b><small>${esc(AREA_LABEL[n.area] || n.area)} · ${esc(n.date)}</small><p>${esc(n.body.replace(/\s+/g, " ").slice(0, 140))}</p></div>`).join("");
+    el.classList.add("show"); clearTimeout(window.__postT); window.__postT = setTimeout(closePost, 180000);
+  },
+};
 function closePost() { $("#post").classList.remove("show"); }
 function onWidget(name, data) { if (render[name]) render[name](data); }
 
@@ -547,7 +583,7 @@ tick(); setInterval(tick, 1000);
 const es = new EventSource("/events");
 es.onmessage = (m) => {
   const e = JSON.parse(m.data);
-  if (e.type === "level") onLevel(e); else if (e.type === "widget") onWidget(e.name, e.data); else onEvent(e);
+  if (e.type === "level") onLevel(e); else if (e.type === "card") { if (cards[e.kind]) cards[e.kind](e.data); } else if (e.type === "widget") onWidget(e.name, e.data); else onEvent(e);
 };
 es.onerror = () => { $("#status").textContent = "SEM CONEXÃO COM O NÚCLEO"; };
 window.__hud = { onEvent, onWidget, onLevel };
