@@ -100,3 +100,11 @@ def test_history_trim_keeps_turn_boundaries():
                            {"role": "assistant", "content": []}]
     brain._trim()
     assert brain._is_user_text(brain.messages[0])
+
+
+def test_mlx_model_mapping():
+    from jarvis.stt import mlx_repo
+
+    assert mlx_repo("small") == "mlx-community/whisper-small-mlx"
+    assert mlx_repo("large-v3") == "mlx-community/whisper-large-v3-mlx"
+    assert mlx_repo("org/custom") == "org/custom"

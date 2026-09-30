@@ -21,13 +21,26 @@ python main.py
 
 Na primeira execução o Whisper e o modelo da hotword são baixados automaticamente.
 
+## Instalação no Mac (Apple Silicon)
+
+```bash
+cd jarvis
+bash scripts/setup_mac.sh
+```
+
+O script instala Python 3.11 e PortAudio via Homebrew, cria o `.venv` e instala as dependências
+(no M1 o Whisper roda via `mlx-whisper`, usando o chip). Depois edite o `.env`, coloque a música em
+`assets/intro.mp3` e rode `source .venv/bin/activate && python main.py`.
+Na primeira execução, autorize o **Microfone** para o Terminal quando o macOS pedir
+(ou em Ajustes do Sistema > Privacidade e Segurança > Microfone).
+
 ## Configuração (.env)
 
 | Variável | Para quê |
 |---|---|
 | `ANTHROPIC_API_KEY` | Cérebro (Claude). `JARVIS_MODEL` troca o modelo |
 | `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID` | Voz. Sem elas o Jarvis só imprime o texto |
-| `WHISPER_MODEL` | `small` sem GPU; `medium`/`large-v3` com GPU NVIDIA |
+| `WHISPER_MODEL` | `small` (padrão); no M1 `medium` também é rápido. `WHISPER_BACKEND=auto` escolhe mlx no Mac |
 | `SPOTIPY_*` | Controle do Spotify (conta Premium) |
 
 ### Voz estilo JARVIS

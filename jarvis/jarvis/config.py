@@ -25,6 +25,7 @@ class Config:
     eleven_model: str
     whisper_model: str
     whisper_language: str
+    whisper_backend: str
     wakeword_model: str
     wakeword_threshold: float
     intro_audio_file: str
@@ -47,6 +48,7 @@ class Config:
             eleven_model=env("ELEVENLABS_MODEL", "eleven_multilingual_v2"),
             whisper_model=env("WHISPER_MODEL", "small"),
             whisper_language=env("WHISPER_LANGUAGE", "pt"),
+            whisper_backend=env("WHISPER_BACKEND", "auto"),
             wakeword_model=env("WAKEWORD_MODEL", "hey_jarvis"),
             wakeword_threshold=float(env("WAKEWORD_THRESHOLD", "0.5")),
             intro_audio_file=env("INTRO_AUDIO_FILE", "assets/intro.mp3"),

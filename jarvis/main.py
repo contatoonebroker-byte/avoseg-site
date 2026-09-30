@@ -38,7 +38,7 @@ def main() -> None:
                        cfg.intro_seconds, cfg.user_name, spotify)
 
     print("Carregando modelos...")
-    stt = Transcriber(cfg.whisper_model, cfg.whisper_language)
+    stt = Transcriber(cfg.whisper_model, cfg.whisper_language, cfg.whisper_backend)
     wake = WakeWord(cfg.wakeword_model, cfg.wakeword_threshold)
 
     print(f"Pronto. Diga a hotword ({cfg.wakeword_model}). Ctrl+C para sair.")
