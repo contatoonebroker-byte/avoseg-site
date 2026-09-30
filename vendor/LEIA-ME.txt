@@ -1,0 +1,8 @@
+Bibliotecas de terceiros hospedadas aqui (em vez de carregadas de um CDN), com hash de integridade
+conferido pelo navegador. Assim, se um CDN for comprometido, o site não executa código alterado.
+
+- supabase-js 2.117.2  (npm: @supabase/supabase-js)
+- xlsx (SheetJS) 0.18.5 (npm: xlsx) - usada só para GERAR planilhas, nunca para abrir arquivos de terceiros
+
+Para atualizar: baixe a nova versão do npm, troque o arquivo, recalcule o hash
+(openssl dgst -sha384 -binary ARQUIVO | openssl base64 -A) e atualize o atributo integrity nas páginas.

@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Avoseg Parceiros</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="vendor/supabase-js-2.117.2.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok"></script>
+<script src="vendor/xlsx-0.18.5.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw"></script>
 <style>
 :root {
   --navy:#0F2744; --navy-light:#1B3A6B; --gold:#D4901A; --gold-light:#F5C842;
@@ -498,12 +498,25 @@ function dc(t){ return {new:'tl-dot-new',contact:'tl-dot-contact',proposal:'tl-d
 function st(s){ return {'Novo':'new','Em contato':'contact','Proposta enviada':'proposal','Fechado':'won','Perdido':'lost'}[s]||'note'; }
 function fm(v){ return 'R$ '+parseFloat(v||0).toFixed(2).replace('.',',').replace(/\B(?=(\d{3})+(?!\d))/g,'.'); }
 function fd(ts){ if(!ts) return '—'; var d=new Date(ts); return d.getDate()+'/'+(d.getMonth()+1)+'/'+d.getFullYear(); }
+
+// ── SEGURANÇA: dado do banco nunca entra no HTML sem escapar ──
+function esc(v){ return String(v==null?'':v).replace(/[&<>"'`]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','`':'&#96;'}[c];}); }
+function sid(v){ return String(v==null?'':v).replace(/[^A-Za-z0-9_-]/g,''); } // ids usados em atributos/handlers
+function xl(v){ // planilha: neutraliza "fórmulas" (=, +, -, @) vindas de dados públicos
+  if(typeof v!=='string') return v;
+  return /^[=+\-@\t\r]/.test(v) ? "'"+v : v;
+}
+function safeExt(file){ // só PDF/JPG/PNG de até 5 MB
+  var e=((file.name.split('.').pop())||'').toLowerCase();
+  return (['pdf','jpg','jpeg','png'].indexOf(e)>=0 && file.size<=5*1024*1024) ? e : null;
+}
+function safeUrl(u){ try{ var x=new URL(u); return (x.protocol==='https:'||x.protocol==='http:')?u:'#'; }catch(e){ return '#'; } }
 function ldg(){ return '<div class="loading"><div class="spinner-dark"></div>Carregando...</div>'; }
 function toast(msg, ok){
   var t=document.getElementById('toast');
   var ic = ok===false ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FCA5A5" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>'
     : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>';
-  t.innerHTML = ic+msg; t.classList.add('show');
+  t.innerHTML = ic; t.appendChild(document.createTextNode(' '+msg)); t.classList.add('show');  // msg como texto, nunca como HTML
   setTimeout(function(){t.classList.remove('show');},3000);
 }
 function openModal(id){ document.getElementById(id).classList.add('open'); }
@@ -534,14 +547,14 @@ function previewReceipt(input){
   var prev=document.getElementById('mc-receipt-preview');
   prev.style.display='flex';
   prev.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>'
-    +file.name+' ('+Math.round(file.size/1024)+'KB)';
+    +esc(file.name)+' ('+Math.round(file.size/1024)+'KB)';
   document.getElementById('mc-receipt-label').textContent='Arquivo: '+file.name;
 }
 async function uploadAndLinkReceipt(commissionId){
   var input=document.getElementById('mc-receipt');
   if(!input||!input.files||!input.files[0]) return;
   var file=input.files[0];
-  var ext=file.name.split('.').pop();
+  var ext=safeExt(file); if(!ext){ toast('Arquivo inválido: use PDF, JPG ou PNG (até 5 MB).',false); return; }
   var path='comprovantes/'+commissionId+'.'+ext;
   var {error}=await db.storage.from('comprovantes').upload(path,file,{upsert:true});
   if(error){console.error('upload receipt',error);return;}
@@ -567,6 +580,7 @@ async function exportLeadsExcel(){
     };
   });
   try {
+    rows=rows.map(function(r){var o={};Object.keys(r).forEach(function(k){o[k]=xl(r[k]);});return o;});
     var ws=XLSX.utils.json_to_sheet(rows);
     ws['!cols']=[{wch:24},{wch:18},{wch:28},{wch:20},{wch:22},{wch:18},{wch:32},{wch:16}];
     var wb=XLSX.utils.book_new();
@@ -712,7 +726,7 @@ function renderSidebar(){
   var nav=S.role==='admin'?adminNav:partnerNav; var html='';
   nav.forEach(function(item){
     if(item.section){ html+='<div class="nav-section">'+item.section+'</div>'; return; }
-    html+='<button class="nav-item" id="nav-'+item.id+'" onclick="navigate(\''+item.id+'\')">'
+    html+='<button class="nav-item" id="nav-'+sid(item.id)+'" onclick="navigate(\''+sid(item.id)+'\')">'
       +'<svg viewBox="0 0 24 24" width="16" height="16">'+item.icon+'</svg>'+item.label+'</button>';
   });
   document.getElementById('sidebar').innerHTML=html;
@@ -756,7 +770,7 @@ async function renderPipeline(c){
     h+='<div class="pipeline-col"><div class="pipeline-col-head">'+col+'<span class="count">'+cl.length+'</span></div>';
     if(!cl.length) h+='<div style="font-size:12px;color:var(--text-muted);padding:8px;text-align:center">Vazio</div>';
     cl.forEach(function(l){
-      h+='<div class="p-card" onclick="openDetail(\''+l.id+'\')"><div class="p-card-name">'+l.name+'</div><div class="p-card-product">'+l.product+'</div><div class="p-card-partner">'+l.partner_name+'</div></div>';
+      h+='<div class="p-card" onclick="openDetail(\''+sid(l.id)+'\')"><div class="p-card-name">'+esc(l.name)+'</div><div class="p-card-product">'+esc(l.product)+'</div><div class="p-card-partner">'+esc(l.partner_name)+'</div></div>';
     });
     h+='</div>';
   });
@@ -778,12 +792,12 @@ async function renderLeadsList(c){
   h+='</div><div class="card" style="padding:0"><div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Produto</th><th>Parceiro</th><th>Status</th><th>Data</th><th></th></tr></thead><tbody>';
   if(!fil.length) h+='<tr><td colspan="6"><div class="empty"><div class="empty-text">Nenhum lead encontrado.</div></div></td></tr>';
   fil.forEach(function(l){
-    h+='<tr><td><div style="font-weight:500">'+l.name+'</div><div style="font-size:11px;color:var(--text-muted)">'+l.tel+'</div></td>'
-      +'<td>'+l.product+'</td>'
-      +'<td><span style="font-size:12px;color:var(--navy-light);background:var(--info-bg);padding:2px 8px;border-radius:20px">'+l.partner_name+'</span></td>'
-      +'<td><span class="badge '+bc(l.status)+'">'+l.status+'</span></td>'
+    h+='<tr><td><div style="font-weight:500">'+esc(l.name)+'</div><div style="font-size:11px;color:var(--text-muted)">'+esc(l.tel)+'</div></td>'
+      +'<td>'+esc(l.product)+'</td>'
+      +'<td><span style="font-size:12px;color:var(--navy-light);background:var(--info-bg);padding:2px 8px;border-radius:20px">'+esc(l.partner_name)+'</span></td>'
+      +'<td><span class="badge '+bc(l.status)+'">'+esc(l.status)+'</span></td>'
       +'<td style="color:var(--text-muted);font-size:12px">'+fd(l.created_at)+'</td>'
-      +'<td><button class="btn btn-sm" onclick="openDetail(\''+l.id+'\')">Ver</button></td></tr>';
+      +'<td><button class="btn btn-sm" onclick="openDetail(\''+sid(l.id)+'\')">Ver</button></td></tr>';
   });
   h+='</tbody></table></div></div></div>'; c.innerHTML=h;
 }
@@ -803,16 +817,16 @@ async function renderPartners(c){
   partners.forEach(function(p){
     var pl=leads.filter(function(l){return l.partner_name===p.name;});
     var pf=pl.filter(function(l){return l.status==='Fechado';}).length;
-    var pixInfo=p.pix?'<div style="font-weight:500;font-size:12px">'+p.pix+'</div>':'-';
-    var bankInfo=p.bank?'<div style="font-size:11px;color:var(--text-muted)">'+p.bank+(p.agency?' · Ag '+p.agency:'')+(p.account?' · Cc '+p.account:'')+'</div>':'';
-    h+='<tr><td><div style="font-weight:500">'+p.name+'</div><div style="font-size:11px;color:var(--text-muted)">'+p.email+'</div></td>'
-      +'<td><span style="font-size:11px;background:var(--surface2);padding:2px 8px;border-radius:20px">'+p.type+'</span></td>'
-      +'<td>'+p.contact+'</td>'
+    var pixInfo=p.pix?'<div style="font-weight:500;font-size:12px">'+esc(p.pix)+'</div>':'-';
+    var bankInfo=p.bank?'<div style="font-size:11px;color:var(--text-muted)">'+esc(p.bank)+(p.agency?' · Ag '+esc(p.agency):'')+(p.account?' · Cc '+esc(p.account):'')+'</div>':'';
+    h+='<tr><td><div style="font-weight:500">'+esc(p.name)+'</div><div style="font-size:11px;color:var(--text-muted)">'+esc(p.email)+'</div></td>'
+      +'<td><span style="font-size:11px;background:var(--surface2);padding:2px 8px;border-radius:20px">'+esc(p.type)+'</span></td>'
+      +'<td>'+esc(p.contact)+'</td>'
       +'<td>'+pixInfo+bankInfo+'</td>'
       +'<td style="font-weight:500">'+pl.length+'</td>'
       +'<td style="color:var(--success);font-weight:500">'+pf+'</td>'
-      +'<td>'+p.commission+'%</td>'
-      +'<td><button class="btn btn-sm btn-danger" onclick="confirmDeletePartner(\''+p.id+'\',\''+p.name.replace(/'/g,"\\'")+'\')">'
+      +'<td>'+esc(p.commission)+'%</td>'
+      +'<td><button class="btn btn-sm btn-danger" data-id="'+esc(p.id)+'" data-name="'+esc(p.name)+'" onclick="confirmDeletePartner(this.dataset.id,this.dataset.name)">'
       +'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>'
       +'Excluir</button></td></tr>';
   });
@@ -847,7 +861,7 @@ async function openChangePassModal(){
   var partners=await dbPartners();
   var sel=document.getElementById('cp-partner');
   sel.innerHTML='<option value="">Selecione...</option>';
-  partners.forEach(function(p){sel.innerHTML+='<option value="'+p.id+'">'+p.name+'</option>';});
+  partners.forEach(function(p){sel.innerHTML+='<option value="'+sid(p.id)+'">'+esc(p.name)+'</option>';});
   document.getElementById('cp-newpass').value='';
   document.getElementById('cp-confirmpass').value='';
   openModal('modal-change-pass');
@@ -890,7 +904,7 @@ async function renderCommissions(c){
       var items=byP[pname];
       var pe=items.filter(function(x){return x.status==='Pendente';}).reduce(function(a,x){return a+parseFloat(x.value||0);},0);
       var pa=items.filter(function(x){return x.status==='Pago';}).reduce(function(a,x){return a+parseFloat(x.value||0);},0);
-      h+='<div class="commission-partner-card"><div style="font-size:15px;font-weight:600;margin-bottom:14px">'+pname+'</div>'
+      h+='<div class="commission-partner-card"><div style="font-size:15px;font-weight:600;margin-bottom:14px">'+esc(pname)+'</div>'
         +'<div class="commission-totals">'
         +'<div class="comm-total-box"><div class="comm-total-label">Total</div><div class="comm-total-value">'+fm(pe+pa)+'</div></div>'
         +'<div class="comm-total-box"><div class="comm-total-label">Pendente</div><div class="comm-total-value" style="color:var(--warning)">'+fm(pe)+'</div></div>'
@@ -907,18 +921,18 @@ async function renderCommissions(c){
         +'</tr></thead><tbody>';
       items.forEach(function(x){
         var recBtn=x.receipt_url
-          ?'<a href="'+x.receipt_url+'" target="_blank" class="receipt-link">'
+          ?'<a href="'+esc(safeUrl(x.receipt_url))+'" target="_blank" class="receipt-link">'
             +'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Ver</a>'
           :'<label class="receipt-link" style="cursor:pointer">'
             +'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>'
-            +'Anexar<input type="file" style="display:none" accept=".pdf,.jpg,.jpeg,.png" onchange="attachReceipt(event,\''+x.id+'\')"/></label>';
-        h+='<tr><td style="padding:8px">'+x.lead_name+'</td><td style="padding:8px">'+x.product+'</td>'
+            +'Anexar<input type="file" style="display:none" accept=".pdf,.jpg,.jpeg,.png" onchange="attachReceipt(event,\''+sid(x.id)+'\')"/></label>';
+        h+='<tr><td style="padding:8px">'+esc(x.lead_name)+'</td><td style="padding:8px">'+esc(x.product)+'</td>'
           +'<td style="padding:8px;font-weight:500">'+fm(x.value)+'</td>'
-          +'<td style="padding:8px;color:var(--text-muted)">'+x.due_date+'</td>'
-          +'<td style="padding:8px"><span class="badge '+(x.status==='Pago'?'badge-paid':'badge-pending')+'">'+x.status+'</span></td>'
+          +'<td style="padding:8px;color:var(--text-muted)">'+esc(x.due_date)+'</td>'
+          +'<td style="padding:8px"><span class="badge '+(x.status==='Pago'?'badge-paid':'badge-pending')+'">'+esc(x.status)+'</span></td>'
           +'<td style="padding:8px">'+recBtn+'</td>'
           +'<td style="padding:8px">'+(x.status==='Pendente'
-            ?'<button class="btn btn-sm btn-gold" onclick="markPaid(\''+x.id+'\')">Marcar pago</button>'
+            ?'<button class="btn btn-sm btn-gold" onclick="markPaid(\''+sid(x.id)+'\')">Marcar pago</button>'
             :'<span style="font-size:11px;color:var(--text-muted)">Concluído</span>'
           )+'</td></tr>';
       });
@@ -937,7 +951,7 @@ async function openCommissionModal(){
   var partners=await dbPartners();
   var sel=document.getElementById('mc-partner');
   sel.innerHTML='<option value="">Selecione...</option>';
-  partners.forEach(function(p){sel.innerHTML+='<option>'+p.name+'</option>';});
+  partners.forEach(function(p){sel.innerHTML+='<option>'+esc(p.name)+'</option>';});
   document.getElementById('mc-lead').innerHTML='<option value="">Selecione o parceiro primeiro</option>';
   sel.onchange=function(){loadLeadsForCommission(this.value);};
   var d=new Date(); d.setDate(d.getDate()+30);
@@ -953,7 +967,7 @@ async function loadLeadsForCommission(pname){
   var leads=await dbLeads(pname||null);
   var closed=leads.filter(function(l){return l.status==='Fechado';});
   sel.innerHTML=closed.length
-    ?'<option value="">Selecione...</option>'+closed.map(function(l){return '<option value="'+l.id+'">'+l.name+' — '+l.product+'</option>';}).join('')
+    ?'<option value="">Selecione...</option>'+closed.map(function(l){return '<option value="'+sid(l.id)+'">'+esc(l.name)+' — '+esc(l.product)+'</option>';}).join('')
     :'<option value="">Nenhum lead fechado</option>';
 }
 async function saveCommission(){
@@ -977,9 +991,10 @@ async function saveCommission(){
   var fileInput=document.getElementById('mc-receipt');
   if(data&&fileInput&&fileInput.files&&fileInput.files[0]){
     var file=fileInput.files[0];
-    var ext=file.name.split('.').pop();
+    var ext=safeExt(file);
     var path='comprovantes/'+data.id+'.'+ext;
-    var upRes=await db.storage.from('comprovantes').upload(path,file,{upsert:true});
+    var upRes=ext?await db.storage.from('comprovantes').upload(path,file,{upsert:true}):{error:new Error('Arquivo inválido (use PDF, JPG ou PNG de até 5 MB)')};
+    if(upRes.error) toast('Comissão salva, mas o comprovante não foi enviado: '+upRes.error.message,false);
     if(!upRes.error){
       var {data:urlData}=db.storage.from('comprovantes').getPublicUrl(path);
       await db.from('commissions').update({receipt_url:urlData.publicUrl}).eq('id',data.id);
@@ -992,8 +1007,8 @@ async function saveCommission(){
 }
 async function attachReceipt(event,commissionId){
   var file=event.target.files[0]; if(!file) return;
+  var ext=safeExt(file); if(!ext){ toast('Arquivo inválido: use PDF, JPG ou PNG (até 5 MB).',false); return; }
   toast('Enviando comprovante...');
-  var ext=file.name.split('.').pop();
   var path='comprovantes/'+commissionId+'.'+ext;
   var {error}=await db.storage.from('comprovantes').upload(path,file,{upsert:true});
   if(error){toast('Erro no upload: '+error.message,false);return;}
@@ -1015,8 +1030,8 @@ async function renderReport(c){
     pl.forEach(function(l){cnt[l.status]=(cnt[l.status]||0)+1;});
     var conv=pl.length>0?Math.round(cnt['Fechado']/pl.length*100):0;
     var pcomm=comms.filter(function(x){return x.partner_name===p.name;}).reduce(function(a,x){return a+parseFloat(x.value||0);},0);
-    h+='<tr><td style="font-weight:500">'+p.name+'</td>'
-      +'<td style="font-size:12px;color:var(--text-secondary)">'+p.type+'</td>'
+    h+='<tr><td style="font-weight:500">'+esc(p.name)+'</td>'
+      +'<td style="font-size:12px;color:var(--text-secondary)">'+esc(p.type)+'</td>'
       +'<td style="font-weight:500">'+pl.length+'</td>'
       +'<td>'+cnt['Em contato']+'</td>'
       +'<td>'+cnt['Proposta enviada']+'</td>'
@@ -1064,9 +1079,9 @@ async function renderClientReferrals(c){
     cpfs.sort(function(a,b){return byCpf[b].fechados-byCpf[a].fechados;}).forEach(function(cpf){
       var v=byCpf[cpf];
       var cpfFmt=cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/,'$1.$2.$3-$4');
-      h+='<tr><td style="font-weight:500">'+v.name+'</td>'
-        +'<td style="font-size:12px;font-family:monospace">'+cpfFmt+'</td>'
-        +'<td>'+v.phone+'</td>'
+      h+='<tr><td style="font-weight:500">'+esc(v.name)+'</td>'
+        +'<td style="font-size:12px;font-family:monospace">'+esc(cpfFmt)+'</td>'
+        +'<td>'+esc(v.phone)+'</td>'
         +'<td style="font-weight:500;text-align:center">'+v.total+'</td>'
         +'<td style="color:var(--success);font-weight:600;text-align:center">'+v.fechados+'</td>'
         +'<td style="font-weight:600;color:var(--warning)">'+fm(v.fechados*100)+'</td></tr>';
@@ -1080,14 +1095,14 @@ async function renderClientReferrals(c){
   refs.forEach(function(r){
     var cpfFmt=r.referrer_cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/,'$1.$2.$3-$4');
     h+='<tr>'
-      +'<td><div style="font-weight:500">'+r.referrer_name+'</div><div style="font-size:11px;color:var(--text-muted)">CPF: '+cpfFmt+'</div></td>'
-      +'<td><div style="font-weight:500">'+r.client_name+'</div><div style="font-size:11px;color:var(--text-muted)">'+r.client_phone+'</div></td>'
-      +'<td>'+r.product+'</td>'
-      +'<td style="font-size:12px">'+r.client_phone+'</td>'
+      +'<td><div style="font-weight:500">'+esc(r.referrer_name)+'</div><div style="font-size:11px;color:var(--text-muted)">CPF: '+esc(cpfFmt)+'</div></td>'
+      +'<td><div style="font-weight:500">'+esc(r.client_name)+'</div><div style="font-size:11px;color:var(--text-muted)">'+esc(r.client_phone)+'</div></td>'
+      +'<td>'+esc(r.product)+'</td>'
+      +'<td style="font-size:12px">'+esc(r.client_phone)+'</td>'
       +'<td style="color:var(--text-muted);font-size:12px">'+fd(r.created_at)+'</td>'
-      +'<td><span class="badge '+bc(r.status)+'">'+r.status+'</span></td>'
+      +'<td><span class="badge '+bc(r.status)+'">'+esc(r.status)+'</span></td>'
       +'<td>'
-        +'<select onchange="updateReferralStatus(\''+r.id+'\',this.value)" style="font-size:12px;padding:4px 8px;border:1px solid var(--border-strong);border-radius:var(--radius);background:var(--surface);color:var(--text);font-family:inherit">'
+        +'<select onchange="updateReferralStatus(\''+sid(r.id)+'\',this.value)" style="font-size:12px;padding:4px 8px;border:1px solid var(--border-strong);border-radius:var(--radius);background:var(--surface);color:var(--text);font-family:inherit">'
         +['Novo','Em contato','Proposta enviada','Fechado','Perdido'].map(function(s){return '<option'+(r.status===s?' selected':'')+'>'+s+'</option>';}).join('')
         +'</select>'
       +'</td>'
@@ -1122,6 +1137,7 @@ async function exportReferralsExcel(){
     };
   });
   try{
+    rows=rows.map(function(r){var o={};Object.keys(r).forEach(function(k){o[k]=xl(r[k]);});return o;});
     var ws=XLSX.utils.json_to_sheet(rows);
     ws['!cols']=[{wch:22},{wch:16},{wch:18},{wch:22},{wch:18},{wch:26},{wch:20},{wch:18},{wch:30},{wch:14},{wch:14}];
     var wb=XLSX.utils.book_new();
@@ -1145,7 +1161,7 @@ async function renderPartnerLeads(c){
   var conv=leads.length>0?Math.round(fechados/leads.length*100):0;
   var h='<div class="page active">'
     +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">'
-    +'<div><div class="page-title">Olá, '+S.partnerName+'</div><div class="page-sub">Acompanhe suas indicações em tempo real</div></div>'
+    +'<div><div class="page-title">Olá, '+esc(S.partnerName)+'</div><div class="page-sub">Acompanhe suas indicações em tempo real</div></div>'
     +'<button class="btn btn-primary" onclick="openModal(\'modal-lead\')">+ Nova indicação</button></div>';
   h+='<div class="partner-stats">'
     +'<div class="partner-stat"><div class="partner-stat-val">'+leads.length+'</div><div class="partner-stat-label">Indicações enviadas</div></div>'
@@ -1156,9 +1172,9 @@ async function renderPartnerLeads(c){
   if(!leads.length) h+='<div class="empty"><div class="empty-text">Nenhuma indicação enviada ainda.<br>Clique em "+ Nova indicação" para começar.</div></div>';
   leads.forEach(function(l){
     h+='<div class="partner-lead-item">'
-      +'<div class="avatar-circle">'+ini(l.name)+'</div>'
-      +'<div class="partner-lead-info"><div class="partner-lead-name">'+l.name+'</div><div class="partner-lead-meta">'+l.product+' · '+fd(l.created_at)+'</div></div>'
-      +'<span class="badge '+bc(l.status)+'">'+l.status+'</span></div>';
+      +'<div class="avatar-circle">'+esc(ini(l.name||''))+'</div>'
+      +'<div class="partner-lead-info"><div class="partner-lead-name">'+esc(l.name)+'</div><div class="partner-lead-meta">'+esc(l.product)+' · '+fd(l.created_at)+'</div></div>'
+      +'<span class="badge '+bc(l.status)+'">'+esc(l.status)+'</span></div>';
   });
   h+='</div></div>'; c.innerHTML=h;
 }
@@ -1202,15 +1218,15 @@ async function renderPartnerCommissions(c){
     h+='<div class="card" style="padding:0"><div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Produto</th><th>Valor</th><th>Vencimento</th><th>Status</th><th>Comprovante</th><th>Obs.</th></tr></thead><tbody>';
     comms.forEach(function(x){
       var recCell=x.receipt_url
-        ?'<a href="'+x.receipt_url+'" target="_blank" class="receipt-link">'
+        ?'<a href="'+esc(safeUrl(x.receipt_url))+'" target="_blank" class="receipt-link">'
           +'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Ver comprovante</a>'
         :'<span style="font-size:11px;color:var(--text-muted)">—</span>';
-      h+='<tr><td style="font-weight:500">'+x.lead_name+'</td><td>'+x.product+'</td>'
+      h+='<tr><td style="font-weight:500">'+esc(x.lead_name)+'</td><td>'+esc(x.product)+'</td>'
         +'<td style="font-weight:600">'+fm(x.value)+'</td>'
-        +'<td style="color:var(--text-muted);font-size:12px">'+x.due_date+'</td>'
-        +'<td><span class="badge '+(x.status==='Pago'?'badge-paid':'badge-pending')+'">'+x.status+'</span></td>'
+        +'<td style="color:var(--text-muted);font-size:12px">'+esc(x.due_date)+'</td>'
+        +'<td><span class="badge '+(x.status==='Pago'?'badge-paid':'badge-pending')+'">'+esc(x.status)+'</span></td>'
         +'<td>'+recCell+'</td>'
-        +'<td style="font-size:12px;color:var(--text-muted)">'+x.obs+'</td></tr>';
+        +'<td style="font-size:12px;color:var(--text-muted)">'+esc(x.obs)+'</td></tr>';
     });
     h+='</tbody></table></div></div>';
   }
@@ -1244,7 +1260,7 @@ function renderTimeline(hist){
   hist.forEach(function(item,i){
     h+='<div class="tl-item"><div class="tl-dot-wrap"><div class="tl-dot '+dc(item.type)+'"></div>'
       +(i<hist.length-1?'<div class="tl-line"></div>':'')
-      +'</div><div><div class="tl-text">'+item.text+'</div><div class="tl-date">'+fd(item.created_at)+'</div></div></div>';
+      +'</div><div><div class="tl-text">'+esc(item.text)+'</div><div class="tl-date">'+fd(item.created_at)+'</div></div></div>';
   });
   document.getElementById('dp-timeline').innerHTML=h;
 }
