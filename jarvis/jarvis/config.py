@@ -24,6 +24,13 @@ DEFAULT_WHISPER_PROMPT = (
 )
 
 
+def _image_provider(explicit: str, openai_key: str) -> str:
+    """Foto por IA liga sozinha quando existe OPENAI_API_KEY. Para desligar: IMAGE_PROVIDER=off."""
+    if explicit.strip().lower() == "off":
+        return "none"
+    return "openai" if openai_key.strip() else "none"
+
+
 @dataclass(frozen=True)
 class Config:
     model: str
@@ -73,7 +80,7 @@ class Config:
             city=env("JARVIS_CITY", "Sorocaba"),
             brain_dir=env("JARVIS_BRAIN_DIR", str(Path.home() / "JarvisBrain")),
             marketing_model=env("JARVIS_MARKETING_MODEL", "claude-opus-5-5"),
-            image_provider=env("IMAGE_PROVIDER", "none"),
+            image_provider=_image_provider(env("IMAGE_PROVIDER", ""), env("OPENAI_API_KEY", "")),
             openai_key=env("OPENAI_API_KEY", ""),
             openai_image_model=env("OPENAI_IMAGE_MODEL", "gpt-image-1"),
             eleven_key=env("ELEVENLABS_API_KEY", ""),

@@ -118,8 +118,9 @@ Elas ficam em `20-Avoseg/marketing/arte/<post>/slide-01.png...` e abrem numa gal
 - **Contatos e cores:** diga por voz ("o Instagram da Avoseg é @..., o WhatsApp é ...") ou edite `marca.md`
   (linhas `- Instagram:`, `- WhatsApp:`, `- Site:`, `- Cores: #0F2744 #2563EB #F59E0B`, `- Rodapé legal:`).
 - **Comandos:** "refaça a arte em estilo escuro", "faça a arte para stories", "abre a pasta da arte".
-- **Foto/fundo por IA (opcional):** `IMAGE_PROVIDER=openai` e `OPENAI_API_KEY` no `.env`; depois "crie a arte com foto por IA".
-  A IA gera só o fundo da capa (sem texto); cada imagem é cobrada pela OpenAI.
+- **Foto de fundo por IA (opcional):** coloque só a `OPENAI_API_KEY` no `.env`. Daí em diante a capa de todo post ganha
+  uma foto gerada por IA (sem texto; o texto continua sendo do layout). Para um post sem foto, diga "sem foto";
+  para desligar de vez, `IMAGE_PROVIDER=off`. Cada imagem é cobrada pela OpenAI.
 - A renderização usa o Google Chrome do Mac via Playwright (`pip install -r requirements.txt`; não baixa navegador).
 
 ## Tela HUD

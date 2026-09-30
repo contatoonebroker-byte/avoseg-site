@@ -161,7 +161,7 @@ def make_tools(brain: Brain, client, model: str, on_change=None, on_post=None, o
         sem_logo = "" if brand.logo else " Dica: coloque o logo em " + f"{AREAS[_area(empresa)]}/marca/logo.png para aparecer na arte."
         return f"Arte criada: {len(files)} imagem(ns) em {out_dir}.{aviso}{sem_logo}"
 
-    def criar_arte(estilo: str = "misto", formato: str = "", com_ia: bool = False, referencia: str = "",
+    def criar_arte(estilo: str = "misto", formato: str = "", com_ia: bool | None = None, referencia: str = "",
                    abrir_pasta: bool = False) -> str:
         """Cria (ou refaz) a arte do último post, ou de outro post salvo (pelo título)."""
         last = state["last"]
@@ -174,11 +174,12 @@ def make_tools(brain: Brain, client, model: str, on_change=None, on_post=None, o
                     "empresa": "Avogroup" if "30-Avogroup" in str(note.path) else "Avoseg"}
         if not last:
             return "Ainda não criei nenhum post nesta conversa. Peça primeiro um post, ou diga o título de um post salvo."
-        if com_ia and image_cfg[0] == "none":
+        aviso = ""
+        if com_ia is None:                       # padrão: usa a foto por IA sempre que estiver configurada
+            com_ia = image_cfg[0] != "none"
+        elif com_ia and image_cfg[0] == "none":
             com_ia = False
-            aviso = " A imagem por IA não está configurada (IMAGE_PROVIDER e OPENAI_API_KEY no .env); fiz a arte só com o layout da marca."
-        else:
-            aviso = ""
+            aviso = " A foto por IA não está configurada (falta a OPENAI_API_KEY no .env); fiz a arte só com o layout da marca."
         res = _fazer_arte(last["empresa"], last["post"], last["note"], formato, estilo, com_ia) + aviso
         if abrir_pasta:
             import subprocess, sys
@@ -191,7 +192,7 @@ def make_tools(brain: Brain, client, model: str, on_change=None, on_post=None, o
         return f"Perfil de marca de {empresa} atualizado."
 
     def criar_post(empresa: str, tema: str, plataforma: str = "instagram", formato: str = "post",
-                   objetivo: str = "", observacoes: str = "", com_arte: bool = True, com_ia: bool = False) -> str:
+                   objetivo: str = "", observacoes: str = "", com_arte: bool = True, com_ia: bool | None = None) -> str:
         if (msg := _precisa_marca(empresa)):
             return msg
         pedido = (f"Crie {formato} para {plataforma} da empresa {empresa}.\nTema: {tema}\n"
@@ -214,8 +215,8 @@ def make_tools(brain: Brain, client, model: str, on_change=None, on_post=None, o
                      "horario": d["melhor_horario"], "conformidade": d["observacoes_de_conformidade"]})
         resultado_arte = ""
         if com_arte:
-            if com_ia and image_cfg[0] == "none":
-                com_ia = False
+            if com_ia is None or image_cfg[0] == "none":
+                com_ia = image_cfg[0] != "none" if com_ia is None else False
             resultado_arte = " " + _fazer_arte(empresa, d, note, formato, "misto", com_ia)
         return (f"Post '{d['titulo_interno']}' criado e salvo no Second Brain; está aberto na tela.{resultado_arte} "
                 f"Gancho: {d['gancho']} CTA: {d['cta']} Melhor horário: {d['melhor_horario']}. "
@@ -267,14 +268,16 @@ def make_tools(brain: Brain, client, model: str, on_change=None, on_post=None, o
               "formato": {"type": "string", "description": "post, carrossel, reels, stories, artigo, mensagem..."},
               "objetivo": {"type": "string"}, "observacoes": {"type": "string"},
               "com_arte": {"type": "boolean", "description": "Gerar também a arte (padrão: sim)."},
-              "com_ia": {"type": "boolean", "description": "Usar foto/fundo gerado por IA (só se o usuário pedir)."}},
+              "com_ia": {"type": "boolean", "description": "Foto de fundo por IA. Omita: usa IA sozinho quando configurada. "
+                                                          "Envie false só se o usuário pedir 'sem foto' ou 'só o layout'."}},
              ["empresa", "tema"], criar_post),
         Tool("criar_arte",
              "Cria ou refaz a ARTE (imagens PNG com a identidade da marca) do último post, ou de um post salvo "
              "pelo título. Use quando o usuário pedir a arte, o design, as imagens do post, outro estilo ou a pasta.",
              {"estilo": {"type": "string", "enum": ["misto", "escuro", "claro"]},
               "formato": {"type": "string", "description": "feed (4:5), quadrado, story (vertical)."},
-              "com_ia": {"type": "boolean", "description": "Fundo da capa gerado por IA (só se pedir)."},
+              "com_ia": {"type": "boolean", "description": "Foto de fundo por IA. Omita: usa IA sozinho quando configurada. "
+                                                            "Envie false só se o usuário pedir 'sem foto' ou 'só o layout'."},
               "referencia": {"type": "string", "description": "Título ou id de um post salvo (vazio = o último)."},
               "abrir_pasta": {"type": "boolean", "description": "Abrir a pasta no Finder."}}, [], criar_arte),
         Tool("ideias_de_conteudo", "Gera ideias de conteúdo de marketing para uma empresa e salva no Second Brain.",

@@ -130,27 +130,46 @@ def test_criar_arte_can_redo_a_saved_post_by_title_and_fails_clearly_without_pos
     assert "Não achei" in novo["criar_arte"].func(referencia="não existe")
 
 
-def test_ai_background_only_when_configured_and_requested(sb):
+def test_ai_background_is_automatic_when_configured_and_can_be_turned_off(sb):
     used = []
     r = FakeRenderer()
-    # sem provedor configurado: avisa e faz a arte só com o layout
-    tools, _ = _tools(sb, POST_COM_SLIDES, renderer=r, image_fn=lambda *a: used.append(a) or b"x")
-    tools["criar_post"].func(empresa="Avoseg", tema="x", com_arte=False)
+    fake = lambda prompt, prov, key, model: used.append((prompt, prov, model)) or b"\x89PNGfundo"
+
+    # sem chave: nunca gera, em silêncio (não pede nada ao usuário)
+    tools, _ = _tools(sb, POST_COM_SLIDES, renderer=r, image_fn=fake)
+    out = tools["criar_post"].func(empresa="Avoseg", tema="x")
+    assert "Arte criada" in out and not used and "não está configurada" not in out
+    # pedir explicitamente foto por IA sem chave: avisa
     assert "não está configurada" in tools["criar_arte"].func(com_ia=True) and not used
-    # com provedor: gera o fundo e usa na capa
-    tools2, _ = _tools(sb, POST_COM_SLIDES, renderer=r, image_cfg=("openai", "k", "gpt-image-1"),
-                       image_fn=lambda prompt, prov, key, model: used.append((prompt, prov, model)) or b"\x89PNGfundo")
-    tools2["criar_post"].func(empresa="Avoseg", tema="x", com_arte=False)
-    out = tools2["criar_arte"].func(com_ia=True)
-    assert "Arte criada" in out and used and used[0][1] == "openai" and "NÃO inclua texto" in used[0][0]
+
+    # com chave: usa IA sozinho, sem o usuário pedir
+    cfg = ("openai", "k", "gpt-image-1")
+    tools2, _ = _tools(sb, POST_COM_SLIDES, renderer=r, image_cfg=cfg, image_fn=fake)
+    out = tools2["criar_post"].func(empresa="Avoseg", tema="x")
+    assert "Arte criada" in out and len(used) == 1 and used[0][1] == "openai" and "NÃO inclua texto" in used[0][0]
     assert "data:image/png;base64" in r.calls[-1][1][0]                              # o fundo entrou na capa
+    # "sem foto": só o layout
+    tools2["criar_arte"].func(com_ia=False)
+    assert len(used) == 1 and "data:image/png;base64" not in r.calls[-1][1][0]
+    # refazer a arte também usa IA por padrão
+    tools2["criar_arte"].func(estilo="escuro")
+    assert len(used) == 2
+
     # falha do gerador não derruba a arte
     def boom(*a):
         raise RuntimeError("cota esgotada")
-    tools3, _ = _tools(sb, POST_COM_SLIDES, renderer=r, image_cfg=("openai", "k", "m"), image_fn=boom)
-    tools3["criar_post"].func(empresa="Avoseg", tema="x", com_arte=False)
-    out = tools3["criar_arte"].func(com_ia=True)
+    tools3, _ = _tools(sb, POST_COM_SLIDES, renderer=r, image_cfg=cfg, image_fn=boom)
+    out = tools3["criar_post"].func(empresa="Avoseg", tema="y")
     assert "Arte criada" in out and "cota esgotada" in out
+
+
+def test_image_provider_turns_on_with_the_key_and_off_with_off():
+    from jarvis.config import _image_provider
+
+    assert _image_provider("", "sk-abc") == "openai"
+    assert _image_provider("none", "sk-abc") == "openai"        # "none" do .env.example antigo não trava
+    assert _image_provider("", "") == "none"
+    assert _image_provider("off", "sk-abc") == "none"
 
 
 def test_openai_image_call_shape_and_error_handling(monkeypatch):
