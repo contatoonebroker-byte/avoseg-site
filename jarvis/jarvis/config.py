@@ -38,6 +38,8 @@ class Config:
     intro_bed: float
     intro_after: float
     silence_s: float
+    conversation_minutes: float
+    follow_up_s: float
     hud_enabled: bool
     hud_host: str
     hud_port: int
@@ -57,7 +59,7 @@ class Config:
             city=env("JARVIS_CITY", "Sorocaba"),
             eleven_key=env("ELEVENLABS_API_KEY", ""),
             eleven_voice=env("ELEVENLABS_VOICE_ID", ""),
-            eleven_model=env("ELEVENLABS_MODEL", "eleven_multilingual_v2"),
+            eleven_model=env("ELEVENLABS_MODEL", "eleven_flash_v2_5"),
             whisper_model=env("WHISPER_MODEL", "small"),
             whisper_language=env("WHISPER_LANGUAGE", "pt"),
             whisper_backend=env("WHISPER_BACKEND", "auto"),
@@ -72,6 +74,8 @@ class Config:
             intro_bed=float(env("INTRO_BED_LEVEL", "0.10")),
             intro_after=float(env("INTRO_AFTER_SECONDS", "10")),
             silence_s=float(env("SILENCE_SECONDS", "0.6")),
+            conversation_minutes=float(env("CONVERSATION_MINUTES", "5")),
+            follow_up_s=float(env("FOLLOW_UP_SECONDS", "8")),
             hud_enabled=env("HUD", "1") == "1",
             hud_host=env("HUD_HOST", "127.0.0.1"),
             hud_port=int(env("HUD_PORT", "8765")),

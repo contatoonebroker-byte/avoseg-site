@@ -366,15 +366,25 @@ def test_brain_streams_sentences_as_they_arrive():
     assert reply == "Claro, senhor. São três da tarde."
 
 
-def test_speech_queue_speaks_in_order():
+def test_speech_queue_prefetches_and_speaks_in_order():
     from jarvis.tts import SpeechQueue
 
-    spoken = []
-    q = SpeechQueue(spoken.append)
+    events, started = [], []
+
+    class FakeSpeaker:
+        def prepare(self, text):
+            events.append(("prepare", text))      # o áudio começa a baixar ao chegar a frase
+            return NS(text=text)
+
+        def play(self, clip):
+            events.append(("play", clip.text))
+
+    q = SpeechQueue(FakeSpeaker(), on_start=started.append)
     for t in ["um", "dois", "três"]:
         q.put(t)
     q.wait()
-    assert spoken == ["um", "dois", "três"]
+    assert [e for e in events if e[0] == "play"] == [("play", "um"), ("play", "dois"), ("play", "três")]
+    assert started == ["um", "dois", "três"]
 
 
 def test_hud_level_events_are_not_replayed():
@@ -392,3 +402,161 @@ def test_hud_level_events_are_not_replayed():
     resp.fp.readline()
     hud.level({"bands": [0.2], "bass": 0.9, "beat": False})
     assert b'"type": "level"' in resp.fp.readline()
+
+
+def test_find_name_variants_and_command_extraction():
+    from jarvis.wakename import find_name
+
+    assert find_name("Jarvis") == ""
+    assert find_name("Jarvis, que horas são?") == "que horas são"
+    assert find_name("Hey Jarvis, toca uma música") == "toca uma música"
+    assert find_name("que horas são, Jarvis?") == "que horas são"
+    assert find_name("Jarbas, qual o clima hoje") == "qual o clima hoje"
+    assert find_name("Garvis abre a agenda") == "abre a agenda"
+    assert find_name("Jarvís!") == ""
+    assert find_name("vou ao mercado comprar pão") is None
+    assert find_name("Travis chegou ontem") is None
+
+
+def test_speaker_streams_chunks_into_clip_and_signals_end():
+    from jarvis.tts import Speaker
+
+    class FakeTTS:
+        def convert(self, **kw):
+            assert kw["output_format"] == "pcm_24000"
+            yield b"\x01\x00"
+            yield b""
+            yield b"\x02\x00"
+
+    sp = Speaker("", "", "m")
+    sp._client = NS(text_to_speech=FakeTTS())
+    clip = sp.prepare("olá")
+    got = []
+    while (c := clip.q.get(timeout=2)) is not None:
+        got.append(c)
+    assert got == [b"\x01\x00", b"\x02\x00"] and clip.error is None
+
+
+def test_first_sentence_is_released_early():
+    from jarvis.brain import SentenceSplitter
+
+    out = []
+    sp = SentenceSplitter(out.append)             # padrões: 1ª frase com 12+ caracteres
+    sp.feed("Claro, senhor. Vou ver isso")
+    assert out == ["Claro, senhor."]              # 1ª sai cedo, para começar a falar logo
+    sp.feed(" agora mesmo. Um instante. Pronto.")
+    sp.flush()
+    assert out[1:] == ["Vou ver isso agora mesmo.", "Um instante. Pronto."]   # curtas grudam
+
+
+def test_haiku_gets_no_effort_parameter():
+    seen = []
+
+    class Client:
+        def __init__(self):
+            self.messages = self
+
+        def create(self, **kw):
+            seen.append(kw)
+            return NS(stop_reason="end_turn", content=[NS(type="text", text="ok")])
+
+    Brain(Client(), "claude-haiku-4-5", []).ask("oi")
+    Brain(Client(), "claude-opus-5-5", []).ask("oi")
+    assert "output_config" not in seen[0] and seen[1]["output_config"] == {"effort": "low"}
+
+
+def test_record_utterance_with_known_noise_starts_immediately_and_reports():
+    from jarvis.audio import record_utterance
+
+    rng = np.random.default_rng(3)
+    loud = lambda: (rng.normal(0, 3000, BLOCK)).astype(np.int16)
+    quiet = lambda: (rng.normal(0, 20, BLOCK)).astype(np.int16)
+    blocks = [quiet(), quiet()] + [loud() for _ in range(6)] + [quiet() for _ in range(12)]
+
+    class FakeMic:
+        def read(self, timeout=1.0):
+            return blocks.pop(0) if blocks else None
+
+    calls = {"speech": 0, "quiet": 0}
+    clip = record_utterance(FakeMic(), noise=50, silence_s=0.4, max_seconds=5,
+                            on_speech=lambda: calls.__setitem__("speech", calls["speech"] + 1),
+                            on_quiet=lambda b: calls.__setitem__("quiet", calls["quiet"] + 1))
+    assert calls["speech"] == 1 and calls["quiet"] >= 2
+    assert clip is not None and len(clip) >= 6 * BLOCK      # pegou a fala inteira (+ pré-rolagem)
+
+
+class ConvHarness:
+    """Simula relógio, microfone e Jarvis para testar o modo conversa sem hardware."""
+
+    def __init__(self, script, minutes=5.0, follow_up_s=8.0):
+        from jarvis.conversation import Conversation
+
+        self.t = 1000.0
+        self.script = list(script)       # [(segundos_até_a_fala, texto)] ; texto None = silêncio
+        self.log, self.commands = [], []
+        self.conv = Conversation(
+            record=self.record, transcribe=lambda clip: clip[1], ask=self.commands.append,
+            chime=lambda: self.log.append("bipe"), flush=lambda: None,
+            emit=lambda s: self.log.append(s), minutes=minutes, follow_up_s=follow_up_s,
+            clock=lambda: self.t)
+
+    def record(self, direct, timeout):
+        if not self.script:              # nada mais será dito: deixa o tempo correr até o fim
+            self.t += timeout
+            return None
+        wait, text = self.script[0]
+        if wait > timeout:               # ninguém falou dentro do prazo
+            self.script[0] = (wait - timeout, text)
+            self.t += timeout
+            return None
+        self.script.pop(0)
+        self.t += wait
+        return (np.zeros(16000, dtype=np.int16), text)
+
+
+class _Clip(tuple):
+    def __len__(self):                   # o clip simulado tem 1 s de áudio
+        return 16000
+
+
+def _fix(h):
+    orig = h.record
+    h.record = lambda d, t: (lambda r: _Clip(r) if r else None)(orig(d, t))
+    h.conv.record = h.record
+    return h
+
+
+def test_conversation_follow_up_needs_no_name_then_name_is_required():
+    h = _fix(ConvHarness([(2, "que horas são"),          # 1º comando após a hotword
+                          (3, "e a data de hoje"),       # logo depois: sem nome
+                          (60, "quero café"),            # 1 min depois: sem nome -> ignora
+                          (5, "Jarvis, toca uma música"),  # com o nome -> executa
+                          ]))
+    h.conv.run()
+    assert h.commands == ["que horas são", "e a data de hoje", "toca uma música"]
+    assert h.log[0] == "bipe" and "standby" in h.log
+
+
+def test_conversation_just_calling_the_name_opens_a_new_listening_window():
+    h = _fix(ConvHarness([(2, "oi"), (30, "Jarvis"), (4, "abre a agenda")]))
+    h.conv.run()
+    assert h.commands == ["oi", "abre a agenda"]      # "Jarvis" sozinho -> bipe -> comando sem nome
+    assert h.log.count("bipe") == 2
+
+
+def test_conversation_ends_after_configured_minutes_of_inactivity():
+    h = _fix(ConvHarness([(2, "oi")], minutes=2))
+    h.conv.run()                                       # termina sozinha (não trava)
+    assert h.commands == ["oi"] and h.t - 1000 >= 2 * 60
+
+
+def test_conversation_disabled_when_minutes_zero():
+    h = _fix(ConvHarness([(2, "oi"), (30, "Jarvis, e agora?")], minutes=0))
+    h.conv.run()
+    assert h.commands == ["oi"]                        # passada a janela direta, volta ao "Hey Jarvis"
+
+
+def test_conversation_gives_up_on_repeated_empty_transcripts():
+    h = _fix(ConvHarness([(1, ""), (1, ""), (1, "algo sem nome")], minutes=0.1))
+    h.conv.run()
+    assert h.commands == []                            # sem fala reconhecida e sem nome: nada executado

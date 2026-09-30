@@ -11,8 +11,10 @@ _SENTENCE_END = re.compile(r"(?<=[.!?…])\s+")
 class SentenceSplitter:
     """Recebe texto em pedaços e entrega frases completas (frases curtas grudam na seguinte)."""
 
-    def __init__(self, emit, min_len: int = 24) -> None:
+    def __init__(self, emit, min_len: int = 24, first_min_len: int = 12) -> None:
+        # a 1ª frase sai mais cedo (começa a falar antes); as seguintes grudam se forem muito curtas
         self.emit, self.min_len, self.buf = emit, min_len, ""
+        self._limit = min(first_min_len, min_len)
 
     def feed(self, chunk: str) -> None:
         self.buf += chunk
@@ -20,8 +22,9 @@ class SentenceSplitter:
         pending = ""
         for sentence in parts[:-1]:
             pending = f"{pending} {sentence}".strip()
-            if len(pending) >= self.min_len:
+            if len(pending) >= self._limit:
                 self.emit(pending)
+                self._limit = self.min_len
                 pending = ""
         self.buf = f"{pending} {parts[-1]}" if pending else parts[-1]
 
@@ -90,10 +93,10 @@ class Brain:
         self.messages.append({"role": "user", "content": text})
         self._trim()
         for _ in range(MAX_TOOL_ROUNDS):
-            kwargs = dict(
-                model=self.model, max_tokens=1024, system=self.system,
-                messages=self.messages, output_config={"effort": "low"},
-            )
+            kwargs = dict(model=self.model, max_tokens=1024, system=self.system,
+                          messages=self.messages)
+            if not self.model.startswith("claude-haiku"):  # Haiku 4.5 não aceita o parâmetro effort
+                kwargs["output_config"] = {"effort": "low"}
             if self.tool_schemas:
                 kwargs["tools"] = self.tool_schemas
             splitter = SentenceSplitter(on_sentence) if on_sentence else None

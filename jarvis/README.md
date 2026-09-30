@@ -48,7 +48,17 @@ Escolha em elevenlabs.io/voice-library uma voz masculina britânica, calma e for
 (filtre por "British", "butler"/"narrator"), copie o *Voice ID* para o `.env`.
 Se quiser clonar uma voz, use apenas uma que você tenha autorização para usar.
 
+### Modo conversa (chamar só "Jarvis")
+Depois de um comando, por `CONVERSATION_MINUTES` (padrão 5) o Jarvis continua ouvindo. Logo após cada resposta
+(`FOLLOW_UP_SECONDS`, padrão 8 s) você fala direto; depois disso, basta dizer **"Jarvis, ..."** (sem "hey"),
+como em "Jarvis, que horas são?" ou só "Jarvis" e esperar o bipe. Fala sem o nome é ignorada.
+Passados os minutos sem interação, volta a exigir "Hey Jarvis". Tudo é transcrito localmente (Whisper);
+nada é enviado para fora a menos que o nome seja ouvido. `CONVERSATION_MINUTES=0` desliga o modo.
+
 ### Velocidade de resposta
+- A voz do ElevenLabs toca **em streaming** (começa no primeiro pedaço) e a próxima frase já vem sendo baixada enquanto a atual toca.
+  Use `ELEVENLABS_MODEL=eleven_flash_v2_5` (rápido) em vez de `eleven_multilingual_v2` (mais rico, mais lento).
+- A cada comando o Terminal mostra `[latência] transcrição … · 1ª frase … · voz começou …`, para ver onde está o tempo.
 - O Jarvis fala **frase a frase** enquanto o Claude ainda está escrevendo, então a voz começa antes de a resposta terminar.
 - `SILENCE_SECONDS` (padrão 0.6) é quanto silêncio ele espera para saber que você terminou de falar. Menor = mais rápido, mas pode cortar pausas.
 - Para respostas ainda mais rápidas, use um modelo menor em `JARVIS_MODEL` (por exemplo `claude-haiku-4-5`).

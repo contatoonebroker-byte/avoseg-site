@@ -107,10 +107,11 @@ class Endpointer:
 def record_utterance(mic: MicStream, start_timeout: float | None = None,
                      max_seconds: float = 20.0, noise: float | None = None,
                      silence_s: float = 0.6, min_threshold: float = 300.0,
-                     on_speech=None) -> np.ndarray | None:
+                     on_speech=None, on_quiet=None) -> np.ndarray | None:
     """Grava até o usuário parar de falar. None se ninguém falar dentro do prazo.
 
     `on_speech` é chamado uma vez, assim que a fala começa (ex.: abaixar a música).
+    `on_quiet` recebe cada bloco sem fala (para acompanhar o ruído de fundo).
     """
     ep = Endpointer(silence_s, min_threshold, noise=noise)
     preroll: list[np.ndarray] = []
@@ -131,6 +132,8 @@ def record_utterance(mic: MicStream, start_timeout: float | None = None,
                     on_speech()
         else:
             preroll = (preroll + [block])[-4:]
+            if on_quiet:
+                on_quiet(block)
             if start_timeout is not None and time.monotonic() - t0 > start_timeout:
                 return None
         if done:

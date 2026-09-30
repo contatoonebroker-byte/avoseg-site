@@ -178,6 +178,7 @@ addEventListener("resize", resize); resize();
 /* ---------- estados do reator ---------- */
 const STATES = {
   idle:      { label: "EM ESPERA",     hue: 200, light: 55, speed: .25, energy: .04 },
+  standby:   { label: "DIGA “JARVIS”", hue: 195, light: 58, speed: .45, energy: .1 },
   wake:      { label: "ATIVADO",       hue: 190, light: 65, speed: 1.2, energy: .35 },
   boot:      { label: "INICIALIZANDO", hue: 190, light: 65, speed: 1.6, energy: .5 },
   listening: { label: "OUVINDO",       hue: 165, light: 60, speed: .7,  energy: .6 },
