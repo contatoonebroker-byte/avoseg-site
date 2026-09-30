@@ -208,3 +208,56 @@ def test_hud_serves_page_and_streams_events():
     hud.emit("speaking", text="olá")
     second = json.loads(resp.fp.readline().decode().removeprefix("data: "))
     assert second["state"] == "speaking" and second["text"] == "olá"
+
+
+def test_hud_replays_widgets_to_new_clients():
+    import http.client
+    import json
+
+    from jarvis.hud import Hud
+
+    hud = Hud(port=0)
+    hud.start()
+    hud.publish("weather", {"city": "Sorocaba", "temp": 27})
+    ev = http.client.HTTPConnection("127.0.0.1", hud.port, timeout=5)
+    ev.request("GET", "/events")
+    resp = ev.getresponse()
+    json.loads(resp.fp.readline().decode().removeprefix("data: "))  # estado
+    resp.fp.readline()
+    w = json.loads(resp.fp.readline().decode().removeprefix("data: "))
+    assert w == {"type": "widget", "name": "weather", "data": {"city": "Sorocaba", "temp": 27}}
+
+
+def test_fetch_weather_includes_hourly_forecast():
+    from jarvis.tools.weather import fetch_weather
+
+    def fake(url, params):
+        if "geocoding" in url:
+            return {"results": [{"name": "Sorocaba", "latitude": 1, "longitude": 2}]}
+        return {"current": {"temperature_2m": 27.4, "apparent_temperature": 29.1, "weather_code": 61},
+                "daily": {"temperature_2m_max": [31], "temperature_2m_min": [18],
+                          "precipitation_probability_max": [None]},
+                "hourly": {"time": ["2026-09-30T15:00", "2026-09-30T16:00"],
+                           "temperature_2m": [27.2, 28.4], "precipitation_probability": [10, None]}}
+
+    w = fetch_weather("Sorocaba", fake)
+    assert w["hours"] == [{"h": "15h", "t": 27, "p": 10}, {"h": "16h", "t": 28, "p": 0}]
+    assert w["rain"] == 0 and w["icon"] == "🌧️"
+
+
+def test_timer_tool_publishes_remaining_time():
+    from jarvis.tools import basic
+
+    published = []
+    tools = {t.name: t for t in basic.make_tools(lambda m: None, published.append)}
+    assert "iniciado" in tools["set_timer"].func(seconds=60, label="macarrão")
+    assert published[-1][0]["label"] == "macarrão" and 58 <= published[-1][0]["remaining"] <= 60
+
+
+def test_system_snapshot_shape():
+    from jarvis.widgets import system_snapshot
+
+    data, net = system_snapshot()
+    assert 0 <= data["cpu"] <= 100 and 0 <= data["mem"] <= 100 and "down" in data
+    data2, _ = system_snapshot(net)
+    assert data2["down"] >= 0

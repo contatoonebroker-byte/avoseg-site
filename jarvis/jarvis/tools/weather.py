@@ -26,25 +26,53 @@ def _get(url: str, params: dict) -> dict:
         return json.load(r)
 
 
-def weather_text(city: str, fetch=_get) -> str:
+def icon(code: int) -> str:
+    if code == 0: return "☀️"
+    if code in (1, 2): return "🌤️"
+    if code == 3: return "☁️"
+    if code in (45, 48): return "🌫️"
+    if 51 <= code <= 57: return "🌦️"
+    if 61 <= code <= 67 or 80 <= code <= 82: return "🌧️"
+    if 71 <= code <= 77: return "❄️"
+    if code >= 95: return "⛈️"
+    return "🌡️"
+
+
+def fetch_weather(city: str, fetch=_get) -> dict | None:
+    """Clima atual, previsão do dia e próximas horas. None se a cidade não existir."""
     geo = fetch(GEO, {"name": city, "count": 1, "language": "pt"}).get("results")
     if not geo:
-        return f"Não encontrei a cidade {city}."
+        return None
     place = geo[0]
     data = fetch(FORECAST, {
         "latitude": place["latitude"], "longitude": place["longitude"],
         "current": "temperature_2m,apparent_temperature,weather_code",
         "daily": "temperature_2m_max,temperature_2m_min,precipitation_probability_max",
+        "hourly": "temperature_2m,precipitation_probability", "forecast_hours": 8,
         "timezone": "auto", "forecast_days": 1,
     })
-    cur, day = data["current"], data["daily"]
+    cur, day, hr = data["current"], data["daily"], data.get("hourly") or {}
+    hours = [
+        {"h": t[11:13] + "h", "t": round(temp), "p": (hr.get("precipitation_probability") or [0] * 99)[i] or 0}
+        for i, (t, temp) in enumerate(zip(hr.get("time", []), hr.get("temperature_2m", [])))
+    ]
+    return {
+        "city": place["name"], "temp": round(cur["temperature_2m"]),
+        "feels": round(cur["apparent_temperature"]), "code": cur["weather_code"],
+        "desc": WMO.get(cur["weather_code"], "tempo variável"), "icon": icon(cur["weather_code"]),
+        "min": round(day["temperature_2m_min"][0]), "max": round(day["temperature_2m_max"][0]),
+        "rain": day["precipitation_probability_max"][0] or 0, "hours": hours,
+    }
+
+
+def weather_text(city: str, fetch=_get) -> str:
+    w = fetch_weather(city, fetch)
+    if w is None:
+        return f"Não encontrei a cidade {city}."
     return (
-        f"Em {place['name']}: agora {round(cur['temperature_2m'])} graus, "
-        f"sensação de {round(cur['apparent_temperature'])}, "
-        f"{WMO.get(cur['weather_code'], 'tempo variável')}. "
-        f"Hoje mínima de {round(day['temperature_2m_min'][0])} e máxima de "
-        f"{round(day['temperature_2m_max'][0])} graus, "
-        f"chance de chuva de {day['precipitation_probability_max'][0]} por cento."
+        f"Em {w['city']}: agora {w['temp']} graus, sensação de {w['feels']}, {w['desc']}. "
+        f"Hoje mínima de {w['min']} e máxima de {w['max']} graus, "
+        f"chance de chuva de {w['rain']} por cento."
     )
 
 

@@ -30,6 +30,20 @@ class Spotify:
     def pause(self) -> None:
         self.sp.pause_playback()
 
+    def now_playing_info(self) -> dict:
+        """Dados do que está tocando, para o widget da tela."""
+        cur = self.sp.current_playback()
+        if not cur or not cur.get("item"):
+            return {"active": False}
+        item = cur["item"]
+        imgs = (item.get("album") or {}).get("images") or []
+        return {
+            "active": True, "playing": bool(cur.get("is_playing")), "title": item["name"],
+            "artist": ", ".join(a["name"] for a in item["artists"]),
+            "art": imgs[len(imgs) // 2]["url"] if imgs else "",
+            "progress": cur.get("progress_ms") or 0, "duration": item.get("duration_ms") or 0,
+        }
+
     def get_volume(self) -> int:
         cur = self.sp.current_playback() or {}
         return (cur.get("device") or {}).get("volume_percent") or 80
@@ -38,8 +52,8 @@ class Spotify:
         self.sp.volume(max(0, min(100, percent)))
 
 
-def make_tools() -> list[Tool]:
-    sp = Spotify()
+def make_tools(sp: Spotify | None = None) -> list[Tool]:
+    sp = sp or Spotify()
 
     def guard(fn):
         def run(**kw) -> str:

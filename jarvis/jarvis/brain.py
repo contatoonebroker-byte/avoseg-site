@@ -9,7 +9,7 @@ eficiente, com um toque discreto de humor britânico e total lealdade.
 Suas respostas serão FALADAS em voz alta em português do Brasil. Portanto:
 - Seja breve: uma ou duas frases, no máximo três.
 - Nada de markdown, listas, emojis ou símbolos; escreva números e horários como se fala.
-- Trate o usuário por "{user}".
+- Trate o usuário por "{user}". Ele mora em {city}; use essa cidade quando perguntar do tempo sem citar outra.
 - Use as ferramentas quando precisar de dados reais (data, hora, música, etc.) e nunca invente resultados.
 - Antes de qualquer ação irreversível (enviar ou apagar algo), peça confirmação.
 - Se não entender o comando (a transcrição de voz pode ter erros), peça para repetir."""
@@ -19,12 +19,13 @@ MAX_TOOL_ROUNDS = 6
 
 
 class Brain:
-    def __init__(self, client, model: str, tools: list[Tool], user_name: str = "senhor") -> None:
+    def __init__(self, client, model: str, tools: list[Tool], user_name: str = "senhor",
+                 city: str = "Sorocaba") -> None:
         self.client = client
         self.model = model
         self.tools = {t.name: t for t in tools}
         self.tool_schemas = [t.schema() for t in tools]
-        self.system = SYSTEM_TEMPLATE.format(user=user_name)
+        self.system = SYSTEM_TEMPLATE.format(user=user_name, city=city)
         self.messages: list[dict] = []
 
     def _trim(self) -> None:

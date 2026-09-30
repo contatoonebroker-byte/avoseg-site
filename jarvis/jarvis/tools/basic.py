@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+import time
 from datetime import datetime
 from typing import Callable
 
@@ -18,15 +19,29 @@ def now_text(now: datetime | None = None) -> str:
             f"{now:%H:%M}")
 
 
-def make_tools(notify: Callable[[str], None]) -> list[Tool]:
+def make_tools(notify: Callable[[str], None], publish: Callable[[list], None] | None = None) -> list[Tool]:
+    timers: list[dict] = []
+
+    def push() -> None:
+        if publish:
+            publish([{"label": t["label"], "remaining": max(0, round(t["end"] - time.time()))} for t in timers])
+
     def get_datetime() -> str:
         return now_text()
 
     def set_timer(seconds: int, label: str = "") -> str:
         if seconds <= 0:
             return "Duração inválida."
-        msg = f"O temporizador{' de ' + label if label else ''} terminou."
-        t = threading.Timer(seconds, notify, args=(msg,))
+        entry = {"label": label or "Temporizador", "end": time.time() + seconds}
+        timers.append(entry)
+        push()
+
+        def fire() -> None:
+            timers.remove(entry)
+            push()
+            notify(f"O temporizador{' de ' + label if label else ''} terminou.")
+
+        t = threading.Timer(seconds, fire)
         t.daemon = True
         t.start()
         return f"Temporizador de {seconds} segundos iniciado."

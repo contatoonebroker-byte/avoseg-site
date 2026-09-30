@@ -26,12 +26,12 @@ class Tool:
         }
 
 
-def build_tools(cfg, notify: Callable[[str], None]) -> list[Tool]:
+def build_tools(cfg, notify: Callable[[str], None], publish=None, spotify=None) -> list[Tool]:
     from . import basic, weather
 
-    tools = basic.make_tools(notify) + weather.make_tools()
+    tools = basic.make_tools(notify, publish) + weather.make_tools()
     if cfg.spotify_enabled:
-        from . import spotify
+        from . import spotify as spotify_tools
 
-        tools += spotify.make_tools()
+        tools += spotify_tools.make_tools(spotify)
     return tools

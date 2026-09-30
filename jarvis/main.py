@@ -14,6 +14,7 @@ from jarvis.intro import DailyIntro
 from jarvis.stt import Transcriber
 from jarvis.tools import build_tools
 from jarvis.tts import Speaker
+from jarvis.widgets import Widgets
 from jarvis.wakeword import WakeWord
 
 FOLLOW_UP_S = 6.0  # janela para continuar a conversa sem repetir a hotword
@@ -31,22 +32,24 @@ def main() -> None:
             speaker.say(text)
 
     speaker = Speaker(cfg.eleven_key, cfg.eleven_voice, cfg.eleven_model)
-    tools = build_tools(cfg, notify=say)
-    brain = Brain(anthropic.Anthropic(), cfg.model, tools, cfg.user_name)
-
     spotify = None
-    if cfg.spotify_enabled and cfg.intro_spotify_uri:
+    if cfg.spotify_enabled:
         from jarvis.tools.spotify import Spotify
 
         spotify = Spotify()
+    tools = build_tools(cfg, notify=say, publish=lambda t: hud.publish("timers", t), spotify=spotify)
+    brain = Brain(anthropic.Anthropic(), cfg.model, tools, cfg.user_name, cfg.city)
+
+    spotify_intro = spotify if cfg.intro_spotify_uri else None
     intro = DailyIntro(STATE_FILE, cfg.intro_audio_file, cfg.intro_spotify_uri,
-                       cfg.intro_seconds, cfg.user_name, spotify,
+                       cfg.intro_seconds, cfg.user_name, spotify_intro,
                        cfg.intro_lead, cfg.intro_tail, cfg.intro_duck)
 
     if cfg.hud_enabled:
         print(f"HUD em {hud.start()}")
         if hud.lan_url():
             print(f"No tablet, abra: {hud.lan_url()}")
+        Widgets(hud, cfg.city, spotify).start()
         if cfg.hud_auto_open:
             webbrowser.open(hud.url)
 
@@ -77,6 +80,7 @@ def main() -> None:
                 if not text:
                     break
                 print(f"VOCÊ: {text}")
+                hud.commands += 1
                 hud.emit("thinking", user=text)
                 try:
                     say(brain.ask(text))

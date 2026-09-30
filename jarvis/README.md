@@ -62,6 +62,16 @@ Ao iniciar, o Jarvis abre uma tela futurista no navegador (`http://127.0.0.1:876
 boot durante a música de abertura, e cores/animações para ouvindo, processando e respondendo.
 Aperte `Ctrl+Cmd+F` no navegador para tela cheia.
 
+### Widgets
+| Widget | Fonte |
+|---|---|
+| Clima e previsão por hora | Open-Meteo (cidade em `JARVIS_CITY`) |
+| Monitor do computador (CPU, memória, disco, bateria, rede) | psutil |
+| Tocando agora | Spotify (se configurado) |
+| Temporizadores | ferramenta `set_timer` |
+| Relógios mundiais, comandos e tempo ativo | local |
+| Agenda e e-mail | prontos para a fase do Google (`hud.publish("agenda", ...)`, `hud.publish("email", ...)`) |
+
 **No tablet (Lenovo Tab):** no `.env` coloque `HUD_HOST=0.0.0.0`, rode o Jarvis e abra no navegador do tablet
 o endereço que ele imprime ("No tablet, abra: ..."), com os dois aparelhos no mesmo Wi-Fi.
 Nesse modo qualquer aparelho da rede consegue ver a tela; use só em rede de confiança.

@@ -22,6 +22,9 @@ class Hud:
         self._subs: list[queue.Queue] = []
         self._lock = threading.Lock()
         self._last: dict = {"state": "idle"}
+        self._widgets: dict[str, dict] = {}
+        self.started = time.time()
+        self.commands = 0
         self._server: ThreadingHTTPServer | None = None
 
     # --- publicação ---
@@ -29,6 +32,15 @@ class Hud:
         event = {"state": state, "t": time.time(), **data}
         with self._lock:
             self._last = event
+            subs = list(self._subs)
+        for q in subs:
+            q.put(event)
+
+    def publish(self, name: str, data) -> None:
+        """Atualiza um widget da tela (clima, monitor, spotify...)."""
+        event = {"type": "widget", "name": name, "data": data}
+        with self._lock:
+            self._widgets[name] = event
             subs = list(self._subs)
         for q in subs:
             q.put(event)
@@ -77,6 +89,8 @@ class Hud:
                 q = hud._subscribe()
                 try:
                     self._send(hud._last)
+                    for w in list(hud._widgets.values()):
+                        self._send(w)
                     while True:
                         try:
                             self._send(q.get(timeout=15))
