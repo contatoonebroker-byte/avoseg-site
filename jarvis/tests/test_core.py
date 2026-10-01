@@ -711,3 +711,16 @@ def test_image_off_is_reported_clearly_even_with_a_valid_key(tmp_path, monkeypat
     monkeypatch.delenv("IMAGE_PROVIDER", raising=False)
     cfg = cfgmod.Config.load()
     assert cfg.image_provider == "openai" and cfg.image_off is False
+
+
+def test_conversation_reports_what_it_heard_when_it_ignores_speech():
+    from jarvis.conversation import Conversation
+
+    heard, clips = [], [np.zeros(16000, dtype=np.int16)]
+    clock = iter([0.0, 20.0, 20.0, 20.0, 999.0, 999.0, 999.0])      # janela direta (8 s) já passou
+    conv = Conversation(record=lambda d, t: clips.pop(0) if clips else None, transcribe=lambda c: "e aí, tudo bem",
+                        ask=lambda t: heard.append(("ASK", t)), chime=lambda: None, flush=lambda: None,
+                        emit=lambda s: None, minutes=5, on_heard=lambda t, n: heard.append((t, n)),
+                        clock=lambda: next(clock))
+    conv.run(chimed=True)
+    assert not any(h[0] == "ASK" for h in heard) and heard[0][0] == "e aí, tudo bem" and "Jarvis" in heard[0][1]

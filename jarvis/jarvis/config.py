@@ -108,7 +108,7 @@ class Config:
             intro_after=float(env("INTRO_AFTER_SECONDS", "10")),
             silence_s=float(env("SILENCE_SECONDS", "1.0")),
             conversation_minutes=float(env("CONVERSATION_MINUTES", "5")),
-            follow_up_s=float(env("FOLLOW_UP_SECONDS", "8")),
+            follow_up_s=float(env("FOLLOW_UP_SECONDS", "15")),
             hud_enabled=env("HUD", "1") == "1",
             hud_host=env("HUD_HOST", "127.0.0.1"),
             hud_port=int(env("HUD_PORT", "8765")),

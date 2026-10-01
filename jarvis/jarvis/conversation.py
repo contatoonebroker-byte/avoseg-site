@@ -23,12 +23,13 @@ class Conversation:
     """
 
     def __init__(self, *, record, transcribe, ask, chime, flush, emit,
-                 minutes: float = 5.0, follow_up_s: float = 8.0, on_command=None,
+                 minutes: float = 5.0, follow_up_s: float = 8.0, on_command=None, on_heard=None,
                  clock=time.monotonic, continue_wait_s: float = 1.8) -> None:
         self.record, self.transcribe, self.ask = record, transcribe, ask
         self.chime, self.flush, self.emit = chime, flush, emit
         self.minutes, self.follow_up_s = minutes, follow_up_s
         self.on_command = on_command
+        self.on_heard = on_heard or (lambda text, note: None)   # o que o Whisper ouviu e o que foi feito com isso
         self.clock = clock
         self.continue_wait_s = continue_wait_s  # quanto esperar pela continuação de uma frase incompleta
 
@@ -68,6 +69,7 @@ class Conversation:
             self.emit("thinking")
             text = self.transcribe(clip)
             if not text:
+                self.on_heard("", "o Whisper não entendeu nada (ruído ou fala muito baixa)")
                 empties += 1
                 if direct and empties > 1:
                     direct_until = 0.0
@@ -78,6 +80,7 @@ class Conversation:
 
             rest = find_name(text)
             if rest is None and not direct:
+                self.on_heard(text, "ignorado: fora da janela de resposta, comece com \"Jarvis\"")
                 continue                       # não falaram comigo
             if rest == "":                     # só chamaram pelo nome: "Jarvis?"
                 self.chime()

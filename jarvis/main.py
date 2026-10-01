@@ -142,6 +142,7 @@ def main() -> None:
 
         return Conversation(record=record, transcribe=transcribe, ask=ask, chime=audio.chime,
                             flush=mic.flush, emit=hud.emit, minutes=cfg.conversation_minutes,
+                            on_heard=lambda t, note: print(f"[ouvi] {t!r} -> {note}"),
                             follow_up_s=cfg.follow_up_s)
 
     print(f"Pronto. Diga a hotword ({cfg.wakeword_model}). Ctrl+C para sair.")

@@ -50,7 +50,7 @@ Se quiser clonar uma voz, use apenas uma que você tenha autorização para usar
 
 ### Modo conversa (chamar só "Jarvis")
 Depois de um comando, por `CONVERSATION_MINUTES` (padrão 5) o Jarvis continua ouvindo. Logo após cada resposta
-(`FOLLOW_UP_SECONDS`, padrão 8 s) você fala direto; depois disso, basta dizer **"Jarvis, ..."** (sem "hey"),
+(`FOLLOW_UP_SECONDS`, padrão 15 s) você fala direto; depois disso, basta dizer **"Jarvis, ..."** (sem "hey"),
 como em "Jarvis, que horas são?" ou só "Jarvis" e esperar o bipe. Fala sem o nome é ignorada.
 Passados os minutos sem interação, volta a exigir "Hey Jarvis". Tudo é transcrito localmente (Whisper);
 nada é enviado para fora a menos que o nome seja ouvido. `CONVERSATION_MINUTES=0` desliga o modo.
