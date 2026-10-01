@@ -80,7 +80,7 @@ class Config:
 
         return cls(
             model=env("JARVIS_MODEL", "claude-opus-5-5"),
-            user_name=env("JARVIS_USER_NAME", "senhor"),
+            user_name=env("JARVIS_USER_NAME", "Bruno"),
             city=env("JARVIS_CITY", "Sorocaba"),
             brain_dir=env("JARVIS_BRAIN_DIR", str(Path.home() / "JarvisBrain")),
             marketing_model=env("JARVIS_MARKETING_MODEL", "claude-opus-5-5"),
