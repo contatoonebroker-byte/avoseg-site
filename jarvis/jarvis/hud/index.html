@@ -152,6 +152,7 @@
 .artpath{margin-top:12px;padding:10px;border:1px solid var(--line,#1e3a4a);border-radius:6px}
 .artpath small{display:block;color:var(--dim);letter-spacing:.12em;font-size:10px;margin-bottom:4px}
 .artpath code{display:block;font-size:11px;word-break:break-all;user-select:all;margin-bottom:8px;color:#9fe8ff}
+#post .artfail{grid-column:1/-1;font-size:11px;color:var(--warn);word-break:break-all;border:1px dashed var(--warn);padding:6px}
 </style>
 </head>
 <body>
@@ -543,6 +544,11 @@ function listCard() { if (lastList) cards.notes(lastList); }
 function openNote(i) { const n = (window.__notes || [])[i]; if (n) noteCard(n, false); }
 function openListed(i) { const n = lastList.items[i]; if (n) noteCard(n, true, lastList.titulo); }
 let lastArt = null;
+function artFail(img) {
+  const s = document.createElement("div"); s.className = "artfail";
+  s.textContent = "Imagem não carregou: " + decodeURIComponent(img.getAttribute("src").replace("/arte/", ""));
+  img.replaceWith(s);
+}
 function openArtDir() {
   if (lastArt && lastArt.pasta_rel) fetch("/abrir", { method: "POST", body: JSON.stringify({ pasta: lastArt.pasta_rel }) }).catch(() => {});
 }
@@ -564,7 +570,7 @@ const cards = {
   arte(d) {
     lastArt = d; const el = $("#post");
     el.innerHTML = `<div class="kicker"><span>ARTE · ${esc(d.titulo).toUpperCase()}</span><button title="Fechar" onclick="closePost()">✕</button></div>
-      <div class="art-grid">${d.images.map((u, i) => `<img src="${esc(u)}" loading="lazy" onclick="artBig(${i})">`).join("")}</div>
+      <div class="art-grid">${d.images.map((u, i) => `<img src="${esc(u)}" onclick="artBig(${i})" onerror="artFail(this)">`).join("")}</div>
       <div class="artpath"><small>PASTA DAS ARTES</small><code id="artpath">${esc(d.pasta)}</code>
         <button class="btn" onclick="openArtDir()">ABRIR PASTA</button> <button class="btn" onclick="copyArtPath(this)">COPIAR CAMINHO</button></div>
       ${window.__post ? `<div style="margin-top:8px"><button class="btn" onclick="render.post(window.__post)">VER LEGENDA E TEXTO</button></div>` : ""}`;

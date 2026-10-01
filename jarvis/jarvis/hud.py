@@ -18,8 +18,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 PAGE = Path(__file__).parent / "hud" / "index.html"
-ART_DIR = re.compile(r"(20-Avoseg|30-Avogroup)/marketing/arte/[\w.\-]+")
-ART_PATH = re.compile(r"(20-Avoseg|30-Avogroup)/marketing/arte/[\w.\-]+/[\w.\-]+\.(png|jpg|jpeg)")
+AREA_DIR = r"\d\d-[\w\-]+"                       # 20-Avoseg, 30-Avogroup, 10-Pessoal...
+ART_DIR = re.compile(AREA_DIR + r"/marketing/arte/[\w.\-]+")
+ART_PATH = re.compile(AREA_DIR + r"/marketing/arte/[\w.\-]+/[\w.\-]+\.(png|jpg|jpeg)")
 ART_TYPES = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg"}
 
 
@@ -116,6 +117,7 @@ class Hud:
                     body = PAGE.read_bytes()
                     self.send_response(200)
                     self.send_header("Content-Type", "text/html; charset=utf-8")
+                    self.send_header("Cache-Control", "no-store")
                     self.send_header("Content-Length", str(len(body)))
                     self.end_headers()
                     self.wfile.write(body)
@@ -147,6 +149,7 @@ class Hud:
                 ok = root is not None and ART_PATH.fullmatch(rel) and ".." not in rel.split("/")
                 p = (root / rel).resolve() if ok else None
                 if not (p and root.resolve() in p.parents and p.is_file()):
+                    print(f"[hud] imagem da arte não encontrada: {rel}", flush=True)
                     return self.send_error(404)
                 body = p.read_bytes()
                 self.send_response(200)
