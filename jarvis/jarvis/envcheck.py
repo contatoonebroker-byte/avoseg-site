@@ -5,6 +5,7 @@ import difflib
 import json
 import re
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -99,3 +100,25 @@ def test_openai(key: str, model: str = "gpt-image-1", opener=urllib.request.urlo
         except Exception as e:
             out.append(f"✗ {label}: sem conexão com a OpenAI ({e})")
     return out
+
+
+def test_voice(key: str, voice_id: str, opener=urllib.request.urlopen) -> list[str]:
+    """Confere a chave e o ID da voz no ElevenLabs SEM gerar áudio (não gasta caracteres)."""
+    if not key or not voice_id:
+        return ["✗ Falta ELEVENLABS_API_KEY ou ELEVENLABS_VOICE_ID no .env: por isso usa a voz do Mac."]
+    req = urllib.request.Request(f"https://api.elevenlabs.io/v1/voices/{urllib.parse.quote(voice_id, safe='')}",
+                                 headers={"xi-api-key": key})
+    try:
+        with opener(req, timeout=20) as r:
+            v = json.load(r)
+        out = [f"✓ Chave e ID válidos. Voz: {v.get('name', '?')} (tipo: {v.get('category', '?')})"]
+        if v.get("category") not in (None, "premade", "cloned", "generated", "professional"):
+            out.append("! Voz da biblioteca: no plano gratuito a API costuma recusá-la (erro 402). "
+                       "Use uma voz padrão (premade) ou assine um plano pago.")
+        return out
+    except urllib.error.HTTPError as e:
+        why = {401: "chave inválida ou sem permissão", 404: "esse ID de voz não existe nesta conta",
+               400: "ID de voz em formato inválido", 402: "plano não permite essa voz"}.get(e.code, "erro do ElevenLabs")
+        return [f"✗ HTTP {e.code}: {why}."]
+    except Exception as e:
+        return [f"✗ Sem conexão com o ElevenLabs ({e})"]

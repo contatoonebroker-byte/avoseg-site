@@ -724,3 +724,22 @@ def test_conversation_reports_what_it_heard_when_it_ignores_speech():
                         clock=lambda: next(clock))
     conv.run(chimed=True)
     assert not any(h[0] == "ASK" for h in heard) and heard[0][0] == "e aí, tudo bem" and "Jarvis" in heard[0][1]
+
+
+def test_voice_check_explains_the_cause_without_leaking_the_key():
+    import io
+    import urllib.error
+    from jarvis.envcheck import test_voice
+
+    assert "voz do Mac" in test_voice("", "abc")[0]
+
+    def ok(req, timeout=0):
+        assert req.get_header("Xi-api-key") == "SEGREDO"
+        return io.BytesIO(b'{"name": "Arthur", "category": "professional"}')
+
+    def nao_existe(req, timeout=0):
+        raise urllib.error.HTTPError(req.full_url, 404, "x", {}, None)
+
+    assert "Arthur" in test_voice("SEGREDO", "id1", ok)[0]
+    out = " ".join(test_voice("SEGREDO", "id1", nao_existe))
+    assert "404" in out and "SEGREDO" not in out
